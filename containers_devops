@@ -1,0 +1,112 @@
+Containerization and Docker
+	1. Docker Standards:
+		○ Are there any company-specific standards or base images we should use for Docker containers?
+		○ How do we manage dependencies and versioning for Docker images?
+	2. Security:
+		○ What measures are in place to ensure the security of Docker images?
+		○ Are image vulnerability scans integrated into the pipeline? If so, which tool is used?
+
+Build and CI/CD Pipeline
+	3. Jenkins Integration:
+		○ How are Jenkins pipelines currently configured for container-based applications?
+		○ Are there existing Jenkins pipeline templates or shared libraries we can reuse?
+	4. Bitbucket Integration:
+		○ How do we trigger builds from Bitbucket (e.g., webhooks, specific branches, or PRs)?
+		○ Are there branch protection rules that tie into the CI/CD pipeline?
+	5. Artifactory:
+		○ What’s the best way to manage tags and versioning in Artifactory for Docker images?
+		○ Is there a retention policy for cleaning up old or unused images?
+	6. Testing:
+		○ What testing frameworks or stages are typically included in the pipeline (e.g., unit, integration, load testing)?
+		○ Are there any tools for automated smoke testing after deployment to staging?
+
+Deployment and Kubernetes
+	7. Kubernetes Process:
+		○ How is Kubernetes structured in terms of namespaces (e.g., dev, staging, production)?
+		○ What is the typical process for deploying containers to Kubernetes? Is it manual, scripted, or automated?
+	8. Helm or Kubectl:
+		○ Do we use Helm for managing Kubernetes deployments, or are deployments handled directly via kubectl commands?
+		○ Are there pre-defined Helm charts or Kubernetes templates for new applications?
+	9. Rollbacks:
+		○ How are rollbacks handled in case of a failed deployment?
+		○ Is there an automated rollback mechanism in place?
+	10. Configuration Management:
+		○ How are ConfigMaps and Secrets managed for different environments?
+		○ What tool or strategy do we use to store and secure sensitive data?
+
+Monitoring and Scaling
+	11. Monitoring:
+		○ What tools are used for monitoring application performance and health in Kubernetes (e.g., Prometheus, Grafana, or other)?
+		○ How are alerts configured for deployments?
+	12. Scaling:
+		○ Is auto-scaling enabled for pods, and if so, what metrics (CPU, memory, custom metrics) are used?
+		○ Are there any predefined limits or quotas for resource usage in each environment?
+
+General Process and Ownership
+	13. Ownership:
+		○ Who is responsible for managing the pipelines (DevOps, development team, or shared ownership)?
+		○ Who handles troubleshooting or failures during builds or deployments?
+	14. Documentation:
+		○ Is there documentation available for the CI/CD pipelines, Kubernetes standards, and deployment processes?
+		○ Where can I find examples or best practices for setting up pipelines and deployments?
+	15. Feedback Loop:
+		○ How do we handle feedback or requests for improvements in the deployment process?
+		○ Are there regular reviews of CI/CD pipeline efficiency and Kubernetes configurations?
+
+Future Improvements
+	16. Tech Stack:
+		○ Are there any upcoming changes or improvements planned for the DevOps stack (e.g., transitioning to GitOps, adding new tools)?
+		○ Are there any new tools or features we should explore for container orchestration or CI/CD?
+	17. Pain Points:
+		○ What are the current challenges or pain points in the containerization and deployment process?
+		○ How can the development team help address these issues?
+	18. Best Practices:
+		○ Are there any best practices or common pitfalls we should be aware of while setting up or maintaining pipelines?
+
+
+Persistent Storage Questions
+	1. Storage Classes:
+		○ What storage classes are available in our Kubernetes setup (e.g., SSD, HDD, network-attached storage)?
+		○ How do we determine which storage class to use for different workloads?
+	2. Persistent Volume Claims (PVCs):
+		○ Are there standardized practices for defining Persistent Volume Claims (PVCs)?
+		○ What is the process for requesting and allocating persistent volumes for stateful applications?
+	3. Dynamic Provisioning:
+		○ Is dynamic provisioning enabled for creating Persistent Volumes (PVs), or do we need to pre-provision storage?
+		○ What cloud provider or on-prem storage system is used for dynamic provisioning?
+	4. Storage Limits and Quotas:
+		○ Are there quotas for storage usage per namespace or application?
+		○ How can we monitor and manage storage usage effectively?
+	5. Backup and Restore:
+		○ What tools or processes are in place for backing up data from persistent volumes (e.g., Velero, snapshots)?
+		○ How do we restore data in case of failure or data corruption?
+	6. Access Modes:
+		○ What access modes (e.g., ReadWriteOnce, ReadOnlyMany, ReadWriteMany) are supported for persistent volumes?
+		○ Are there any restrictions on using shared storage for multi-container applications?
+	7. StatefulSets vs Deployments:
+		○ Should we use StatefulSets instead of Deployments for containers requiring persistent storage?
+		○ Are there any existing templates for StatefulSets in our Kubernetes setup?
+	8. Data Retention Policies:
+		○ What happens to Persistent Volumes when a namespace, pod, or PVC is deleted?
+		○ Is there a policy for data retention or archiving for old projects or decommissioned environments?
+	9. Performance Considerations:
+		○ Are there performance benchmarks or guidelines for storage options (e.g., IOPS, latency)?
+		○ How do we handle performance tuning for databases or other high-demand storage workloads?
+	10. Encryption and Security:
+		○ Are persistent volumes encrypted at rest?
+		○ How is access to storage secured (e.g., IAM roles, Kubernetes RBAC)?
+	11. Disaster Recovery:
+		○ What is the disaster recovery plan for persistent storage (e.g., replication, failover)?
+		○ How are storage zones or availability zones configured to ensure high availability?
+	12. Monitoring Storage:
+		○ How do we monitor storage health, usage, and performance in Kubernetes?
+		○ Are there alerts in place for low storage space or failing volumes?
+	13. Pre-Provisioned Storage:
+		○ For databases or critical systems, should we manually pre-provision storage to ensure stability?
+		○ How is this storage tied to specific pods or services?
+	14. Migration of Data:
+		○ How do we handle migration of persistent storage when scaling or redeploying services?
+		○ Are there tools for moving data between environments (e.g., dev → staging → prod)?
+	15. File Systems and Compatibility:
+		○ Are there preferred file systems for storage (e.g., ext4, xfs) depending on the workload?
+Are there compatibility concerns with certain types of applications or databases
