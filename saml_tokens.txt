@@ -1,0 +1,33 @@
+Default Token Lifetimes
+Proof Token Lifetime:
+
+Default: 7 hours.
+Governs operations requiring security validation, such as workflows or API calls.
+SAML Token Lifetime (IdP):
+
+Common Default: 1–8 hours, depending on the IdP.
+Controls how long the authentication session remains valid before requiring reauthentication.
+FedAuth Cookie (FormsTokenLifetime):
+
+Default: 10 hours.
+Maintains session persistence without reauthentication.
+Recommendation for SAML Token Lifetime
+Given that the Proof Token Lifetime is 7 hours, setting the SAML token lifetime to 7 or 8 hours would ensure smooth session behavior and token validation, aligning with the SharePoint defaults.
+
+Why 7–8 Hours?
+Avoid Premature Expiry:
+
+If the SAML token expires before the Proof Token, users may experience disruptions when refreshing proof tokens or completing workflows.
+Align with Proof Token Lifetime:
+
+Keeping the SAML token lifetime close to the Proof Token Lifetime ensures that sessions expire gracefully without unnecessary prompts.
+User Session Consistency:
+
+A typical workday for many users is 7–8 hours. This setting minimizes interruptions while maintaining reasonable security.
+Adjustments if Needed
+For Higher Security Needs:
+
+Shorten the SAML token lifetime (e.g., 4 hours) and adjust the Proof Token Lifetime or FedAuth cookie accordingly to match security policies.
+For Longer Sessions:
+
+If your users need extended uninterrupted sessions (e.g., for overnight jobs or specific workflows), you can increase the Proof Token and SAML token lifetimes (e.g., up to 10 hours).
