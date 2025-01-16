@@ -20,3 +20,15 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 
 sudo docker --version
 sudo docker run hello-world
+
+####
+
+{
+  "proxies": {
+    "default": {
+      "httpProxy": "http://your.proxy.server:port",
+      "httpsProxy": "http://your.proxy.server:port",
+      "noProxy": "localhost,127.0.0.1,::1"
+    }
+  }
+}
