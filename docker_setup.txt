@@ -34,3 +34,16 @@ test
     }
   }
 }
+
+####
+
+
+Build and then run the flask:
+
+docker build -t flask-app:latest .
+
+docker run --network=my_network -p 5000:5000 --name flask-app flask-app
+
+Running with the env vars for mongo pw specified in env vars:
+
+docker run --network=my_network -p 5000:5000   -e MONGO_USERNAME=admin -e MONGO_PASSWORD=*** -e MONGO_HOST=29471c688f24 -e MONGO_DB=reportsdb--name flask-app 
