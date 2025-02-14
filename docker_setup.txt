@@ -65,3 +65,26 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
 # Verify
 RUN python3 --version && pip3 --version
+
+
+####
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "ok"}), 200
+
+####
+
+import pytest
+from app import app  # Adjust the import if your app file has a different name
+
+@pytest.fixture
+def client():
+    app.config['TESTING'] = True
+    with app.test_client() as client:
+        yield client
+
+def test_health_check(client):
+    response = client.get('/health')
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "ok"}
