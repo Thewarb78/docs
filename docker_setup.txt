@@ -88,3 +88,105 @@ def test_health_check(client):
     response = client.get('/health')
     assert response.status_code == 200
     assert response.get_json() == {"status": "ok"}
+
+#####
+
+
+pipeline {
+    agent any
+
+    environment {
+        ARTIFACTORY_URL = 'https://your-artifactory.com'
+        ARTIFACTORY_REPO_DEV = 'docker-local-dev'
+        ARTIFACTORY_REPO_RELEASE = 'docker-local-release'
+        IMAGE_NAME = 'your-app'
+        ARTIFACTORY_USER = credentials('artifactory-user')
+        ARTIFACTORY_PASSWORD = credentials('artifactory-password')
+
+        // Detect Environment based on Job Name
+        ENVIRONMENT = sh(script: '''
+            case "$JOB_NAME" in
+                *dev*) echo "dev" ;;
+                *stg*) echo "stg" ;;
+                *prd*) echo "prd" ;;
+                *) echo "unknown" ;;
+            esac
+        ''', returnStdout: true).trim()
+    }
+
+    stages {
+        stage('Build & Push Dev (Auto)') {
+            when { expression { env.ENVIRONMENT == 'dev' } }
+            steps {
+                script {
+                    def devTag = "${ARTIFACTORY_URL}/${ARTIFACTORY_REPO_DEV}/${IMAGE_NAME}:latest-dev"
+                    
+                    sh """
+                    docker build -t ${devTag} .
+                    docker login -u \$ARTIFACTORY_USER -p \$ARTIFACTORY_PASSWORD ${ARTIFACTORY_URL}
+                    docker push ${devTag}
+                    """
+                    echo "Dev image pushed as latest-dev."
+                }
+            }
+        }
+
+        stage('Promote to Staging (Gated)') {
+            when { expression { env.ENVIRONMENT == 'stg' } }
+            steps {
+                script {
+                    sh """
+                    curl -u \$ARTIFACTORY_USER:\$ARTIFACTORY_PASSWORD -X POST \
+                         "${ARTIFACTORY_URL}/api/docker/${ARTIFACTORY_REPO_RELEASE}/v2/promote" \
+                         -H "Content-Type: application/json" \
+                         -d '{"targetRepo":"docker-local-release", "dockerRepository":"your-app", "tag":"latest-dev", "targetTag":"latest-stg", "copy": true}'
+                    """
+                    echo "Staging image promoted from latest-dev to latest-stg."
+                }
+            }
+        }
+
+        stage('Verify Staging Deployment Before Prod') {
+            when { expression { env.ENVIRONMENT == 'prd' } }
+            steps {
+                script {
+                    def stgExists = sh(script: """
+                        curl -s -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} \\
+                             -X GET "${ARTIFACTORY_URL}/artifactory/api/docker/${ARTIFACTORY_REPO_RELEASE}/v2/${IMAGE_NAME}/manifests/latest-stg" \\
+                             -o /dev/null -w "%{http_code}"
+                    """, returnStdout: true).trim()
+
+                    if (stgExists != "200") {
+                        error "Staging image does not exist in Artifactory. Cannot proceed to production."
+                    }
+
+                    echo "Staging image exists. Proceeding to Production."
+                }
+            }
+        }
+
+        stage('Promote to Production (Gated)') {
+            when { expression { env.ENVIRONMENT == 'prd' } }
+            steps {
+                script {
+                    sh """
+                    curl -u \$ARTIFACTORY_USER:\$ARTIFACTORY_PASSWORD -X POST \
+                         "${ARTIFACTORY_URL}/api/docker/${ARTIFACTORY_REPO_RELEASE}/v2/promote" \
+                         -H "Content-Type: application/json" \
+                         -d '{"targetRepo":"docker-local-release", "dockerRepository":"your-app", "tag":"latest-stg", "targetTag":"latest-prd", "copy": true}'
+                    """
+                    echo "Production image promoted from latest-stg to latest-prd."
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully for ${env.ENVIRONMENT}!"
+        }
+        failure {
+            echo "Pipeline failed. Check logs."
+        }
+    }
+}
