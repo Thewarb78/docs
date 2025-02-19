@@ -103,7 +103,6 @@ pipeline {
         ARTIFACTORY_USER = credentials('artifactory-user')
         ARTIFACTORY_PASSWORD = credentials('artifactory-password')
 
-        // Detect Environment based on Job Name
         ENVIRONMENT = sh(script: '''
             case "$JOB_NAME" in
                 *dev*) echo "dev" ;;
@@ -115,18 +114,25 @@ pipeline {
     }
 
     stages {
+        stage('Debug: Show Environment') {
+            steps {
+                script {
+                    echo "🔍 DEBUG: Detected Environment: ${env.ENVIRONMENT}"
+                }
+            }
+        }
+
         stage('Build & Push Dev (Auto)') {
             when { expression { env.ENVIRONMENT == 'dev' } }
             steps {
                 script {
-                    def devTag = "${ARTIFACTORY_URL}/${ARTIFACTORY_REPO_DEV}/${IMAGE_NAME}:latest-dev"
-                    
-                    sh """
-                    docker build -t ${devTag} .
-                    docker login -u \$ARTIFACTORY_USER -p \$ARTIFACTORY_PASSWORD ${ARTIFACTORY_URL}
-                    docker push ${devTag}
-                    """
-                    echo "Dev image pushed as latest-dev."
+                    def server = Artifactory.newServer url: ARTIFACTORY_URL
+                    def rtDocker = Artifactory.docker server: server
+                    def devTag = "${ARTIFACTORY_REPO_DEV}/${IMAGE_NAME}:latest-dev"
+
+                    def buildInfo = rtDocker.push("${devTag}", forceXrayScan: true)
+                    server.publishBuildInfo buildInfo
+                    echo "✅ Dev image pushed as latest-dev (overwritten)."
                 }
             }
         }
@@ -135,13 +141,17 @@ pipeline {
             when { expression { env.ENVIRONMENT == 'stg' } }
             steps {
                 script {
-                    sh """
-                    curl -u \$ARTIFACTORY_USER:\$ARTIFACTORY_PASSWORD -X POST \
-                         "${ARTIFACTORY_URL}/api/docker/${ARTIFACTORY_REPO_RELEASE}/v2/promote" \
-                         -H "Content-Type: application/json" \
-                         -d '{"targetRepo":"docker-local-release", "dockerRepository":"your-app", "tag":"latest-dev", "targetTag":"latest-stg", "copy": true}'
-                    """
-                    echo "Staging image promoted from latest-dev to latest-stg."
+                    def server = Artifactory.newServer url: ARTIFACTORY_URL
+                    def promotionConfig = [
+                        'targetRepo': ARTIFACTORY_REPO_RELEASE,
+                        'dockerRepository': IMAGE_NAME,
+                        'tag': 'latest-dev',
+                        'targetTag': 'latest-stg',
+                        'copy': true
+                    ]
+
+                    server.dockerPromote promotionConfig
+                    echo "✅ Staging image promoted from latest-dev to latest-stg."
                 }
             }
         }
@@ -150,6 +160,7 @@ pipeline {
             when { expression { env.ENVIRONMENT == 'prd' } }
             steps {
                 script {
+                    echo "🔍 Checking if latest-stg exists before proceeding to Production..."
                     def stgExists = sh(script: """
                         curl -s -u ${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD} \\
                              -X GET "${ARTIFACTORY_URL}/artifactory/api/docker/${ARTIFACTORY_REPO_RELEASE}/v2/${IMAGE_NAME}/manifests/latest-stg" \\
@@ -157,10 +168,10 @@ pipeline {
                     """, returnStdout: true).trim()
 
                     if (stgExists != "200") {
-                        error "Staging image does not exist in Artifactory. Cannot proceed to production."
+                        error "❌ ERROR: Staging image does not exist in Artifactory. Cannot proceed to production."
                     }
 
-                    echo "Staging image exists. Proceeding to Production."
+                    echo "✅ Staging image exists. Proceeding to Production."
                 }
             }
         }
@@ -169,13 +180,17 @@ pipeline {
             when { expression { env.ENVIRONMENT == 'prd' } }
             steps {
                 script {
-                    sh """
-                    curl -u \$ARTIFACTORY_USER:\$ARTIFACTORY_PASSWORD -X POST \
-                         "${ARTIFACTORY_URL}/api/docker/${ARTIFACTORY_REPO_RELEASE}/v2/promote" \
-                         -H "Content-Type: application/json" \
-                         -d '{"targetRepo":"docker-local-release", "dockerRepository":"your-app", "tag":"latest-stg", "targetTag":"latest-prd", "copy": true}'
-                    """
-                    echo "Production image promoted from latest-stg to latest-prd."
+                    def server = Artifactory.newServer url: ARTIFACTORY_URL
+                    def promotionConfig = [
+                        'targetRepo': ARTIFACTORY_REPO_RELEASE,
+                        'dockerRepository': IMAGE_NAME,
+                        'tag': 'latest-stg', // ✅ Copy Staging, not Dev!
+                        'targetTag': 'latest-prd',
+                        'copy': true
+                    ]
+
+                    server.dockerPromote promotionConfig
+                    echo "✅ Production image copied from latest-stg to latest-prd."
                 }
             }
         }
@@ -183,10 +198,11 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline completed successfully for ${env.ENVIRONMENT}!"
+            echo "🎉 Pipeline completed successfully for ${env.ENVIRONMENT}!"
         }
         failure {
-            echo "Pipeline failed. Check logs."
+            echo "❌ Pipeline failed for ${env.ENVIRONMENT}. Check logs."
         }
     }
 }
+
