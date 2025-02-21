@@ -206,3 +206,66 @@ pipeline {
     }
 }
 
+####
+
+Get Details of Blocking Queries
+
+SELECT 
+    r.session_id, 
+    r.blocking_session_id, 
+    r.wait_type, 
+    r.wait_time / 1000 AS WaitTimeSec, 
+    r.wait_resource, 
+    t.text AS SQLQuery
+FROM sys.dm_exec_requests r
+CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+WHERE r.blocking_session_id <> 0;
+
+####
+
+Find Queries Currently Running in the Usage Database
+
+USE WSS_UsageApplication; -- Change to your SharePoint DB
+GO
+
+SELECT 
+    r.session_id, 
+    r.status, 
+    r.command, 
+    r.wait_type, 
+    r.wait_time / 1000 AS WaitTimeSec, 
+    r.blocking_session_id, 
+    t.text AS SQLQuery
+FROM sys.dm_exec_requests r
+CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+WHERE r.database_id = DB_ID();
+
+####
+
+Find the Most Blocked Queries (Historical Data)
+
+SELECT 
+    blocking_session_id AS BlockingSession, 
+    COUNT(*) AS BlockedQueries
+FROM sys.dm_exec_requests
+WHERE blocking_session_id <> 0
+GROUP BY blocking_session_id
+ORDER BY COUNT(*) DESC;
+
+####
+
+Find the Largest Tables in the Usage DB (Possible Cause of Blocking)
+
+USE WSS_UsageApplication; -- Change this to your Usage DB
+GO
+
+SELECT 
+    t.NAME AS TableName, 
+    p.rows AS RowCounts, 
+    SUM(a.total_pages) * 8 / 1024 AS TotalSpaceMB
+FROM sys.tables t
+JOIN sys.indexes i ON t.OBJECT_ID = i.object_id
+JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id
+JOIN sys.allocation_units a ON p.partition_id = a.container_id
+GROUP BY t.Name, p.Rows
+ORDER BY TotalSpaceMB DESC;
