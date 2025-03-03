@@ -269,3 +269,40 @@ JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id
 JOIN sys.allocation_units a ON p.partition_id = a.container_id
 GROUP BY t.Name, p.Rows
 ORDER BY TotalSpaceMB DESC;
+
+import requests
+
+def getOAuthAccessToken(host, endpoint, basicAuthString):
+    url = f"https://{host}{endpoint}"  # Construct full URL
+    payload = {'grant_type': 'client_credentials'}  # Use a dictionary for form data
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': basicAuthString
+    }
+
+    # Make the POST request
+    response = requests.post(url, data=payload, headers=headers)
+
+    # Raise an error if the request fails
+    response.raise_for_status()
+
+    # Parse JSON response
+    json_data = response.json()
+
+    # Return access token
+    return json_data.get("access_token", None)
+
+def makeBearerCall(host, token, verb, endpoint):
+    url = f"https://{host}{endpoint}"  # Construct full URL
+    headers = {
+        'Authorization': f'Bearer {token}'
+    }
+
+    # Make the request with the specified HTTP verb
+    response = requests.request(verb, url, headers=headers)
+
+    # Raise an error if the request fails
+    response.raise_for_status()
+
+    # Return response content as text
+    return response.text
