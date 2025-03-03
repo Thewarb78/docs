@@ -306,3 +306,31 @@ def makeBearerCall(host, token, verb, endpoint):
 
     # Return response content as text
     return response.text
+
+    import requests
+import json
+
+# Define the URL of the web service
+url = "https://example.com/api/data"  # Replace with the actual API endpoint
+
+try:
+    # Make a GET request to the web service
+    response = requests.get(url)
+
+    # Ensure the request was successful
+    response.raise_for_status()
+
+    # Parse the JSON response
+    data = response.json()
+
+    # Print the parsed JSON data in a structured format
+    for entry in data:
+        print(f"SUB ID: {entry.get('SUB ID', 'N/A')}")
+        print(f"SERVER: {entry.get('SERVER', 'N/A')}")
+        print(f"ECOSYSTEM: {entry.get('ECOSYSTEM', 'N/A')}")
+        print("-" * 30)
+
+except requests.exceptions.RequestException as e:
+    print(f"Error fetching data: {e}")
+except json.JSONDecodeError:
+    print("Error parsing JSON response")
