@@ -345,3 +345,21 @@ except requests.exceptions.SSLError as e:
     print(f"SSL Error: {e}")
 except requests.exceptions.RequestException as e:
     print(f"Request failed: {e}")
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
+
+class TLSAdapter(HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = create_urllib3_context()
+        ctx.minimum_version = 3  # Forces TLS 1.2 or higher
+        kwargs['ssl_context'] = ctx
+        super().init_poolmanager(*args, **kwargs)
+
+session = requests.Session()
+session.mount("https://", TLSAdapter())
+
+url = "https://your-api-endpoint.com"
+response = session.get(url, verify=False)  # Set verify=False only for debugging
+print(response.text)
