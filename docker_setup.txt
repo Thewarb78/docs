@@ -363,3 +363,6 @@ session.mount("https://", TLSAdapter())
 url = "https://your-api-endpoint.com"
 response = session.get(url, verify=False)  # Set verify=False only for debugging
 print(response.text)
+
+[System.Net.WebRequest]::DefaultWebProxy = New-Object System.Net.WebProxy("http://proxyserver:8080", $true)
+[System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
