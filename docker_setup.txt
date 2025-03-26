@@ -366,3 +366,23 @@ print(response.text)
 
 [System.Net.WebRequest]::DefaultWebProxy = New-Object System.Net.WebProxy("http://proxyserver:8080", $true)
 [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
+
+
+sudo nano /etc/systemd/system/mycontainer.service
+
+[Unit]
+Description=My Docker Container
+After=network.target
+
+[Service]
+ExecStartPre=-/usr/bin/docker pull your-image:latest
+ExecStart=/usr/bin/docker run --rm --name mycontainer -p 8080:8080 -d your-image:latest
+ExecStop=/usr/bin/docker stop mycontainer
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+sudo systemctl enable mycontainer
+sudo systemctl start mycontainer
