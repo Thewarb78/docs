@@ -386,3 +386,74 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable mycontainer
 sudo systemctl start mycontainer
+
+######
+
+from flask import Flask, request, jsonify, render_template, send_file, redirect, url_for
+from flask_pymongo import PyMongo
+from flask_oidc import OpenIDConnect
+from bson.objectid import ObjectId
+from datetime import datetime
+import os
+import pandas as pd
+from io import BytesIO
+
+app = Flask(__name__)
+
+# --- OIDC Config ---
+app.config.update({
+    'SECRET_KEY': 'super-secret-key',  # Replace with your own secret
+    'OIDC_CLIENT_SECRETS': 'client_secrets.json',
+    'OIDC_SCOPES': ['openid', 'email', 'profile'],
+    'OIDC_RESOURCE_CHECK_AUD': True,
+    'OIDC_INTROSPECTION_AUTH_METHOD': 'client_secret_post',
+    'OVERWRITE_REDIRECT_URI': 'http://localhost:5000/oidc/callback'  # Update in production
+})
+oidc = OpenIDConnect(app)
+
+# --- MongoDB Config ---
+app.config["MONGO_URI"] = "mongodb://admin:@localhost:27017/reportsdb?authSource=admin"
+mongo = PyMongo(app)
+reports_collection = mongo.db.reports
+
+# --- Auth routes ---
+@app.route('/login')
+@oidc.require_login
+def login():
+    return redirect(url_for('view_reports'))
+
+@app.route('/logout')
+def logout():
+    oidc.logout()
+    return redirect(url_for('view_reports'))
+
+# --- UI route (protected) ---
+@app.route('/reports/view', methods=['GET'])
+@oidc.require_login
+def view_reports():
+    # (existing logic for view_reports goes here)
+    return render_template('view_reports.html')
+
+# --- OIDC callback ---
+@app.route('/oidc/callback')
+def oidc_callback():
+    return redirect(url_for('view_reports'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+#####
+
+{
+  "web": {
+    "client_id": "flask-ui-client",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "auth_uri": "https://your-oidc-provider/auth",
+    "token_uri": "https://your-oidc-provider/token",
+    "userinfo_uri": "https://your-oidc-provider/userinfo",
+    "issuer": "https://your-oidc-provider/",
+    "redirect_uris": [
+      "http://localhost:5000/oidc/callback"
+    ]
+  }
+}
