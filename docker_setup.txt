@@ -457,3 +457,5 @@ if __name__ == '__main__':
     ]
   }
 }
+
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='mf-favicon.png') }}">
