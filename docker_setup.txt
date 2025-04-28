@@ -471,33 +471,31 @@ if ((Get-PSSnapin -Name Microsoft.SharePoint.PowerShell -ErrorAction SilentlyCon
 $siteUrl = "http://your-sharepoint-site"
 $libraryName = "Documents"
 
-# Get the site and web
+# Connect
 $site = Get-SPSite $siteUrl
 $web = $site.RootWeb
-
-# Get the document library
 $list = $web.Lists[$libraryName]
 
-# Create CAML query to get only folders
-$query = New-Object Microsoft.SharePoint.SPQuery
-$query.Query = @"
-<View Scope='RecursiveAll'>
-    <Query>
-        <Where>
-            <Eq>
-                <FieldRef Name='FSObjType' />
-                <Value Type='Integer'>1</Value>
-            </Eq>
-        </Where>
-    </Query>
-</View>
-"@
+# Function to count folders recursively
+function Get-FolderCount {
+    param (
+        [Microsoft.SharePoint.SPFolder]$Folder
+    )
 
-# Execute query
-$items = $list.GetItems($query)
+    $folderCount = 0
 
-# Get count
-$totalFolders = $items.Count
+    foreach ($subFolder in $Folder.SubFolders) {
+        if ($subFolder.Name -ne "Forms") { # Skip system folders
+            $folderCount++
+            $folderCount += Get-FolderCount -Folder $subFolder
+        }
+    }
+
+    return $folderCount
+}
+
+# Start counting from root folder
+$totalFolders = Get-FolderCount -Folder $list.RootFolder
 
 Write-Host "Total number of folders in library '$libraryName': $totalFolders"
 
