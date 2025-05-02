@@ -520,3 +520,9 @@ GROUP BY
     DocId, LeafName, DirName
 ORDER BY 
     VersionCount DESC;
+
+###
+
+SELECT COUNT(*) AS VersionRowCount
+FROM AllDocVersions WITH (NOLOCK)
+WHERE SiteId = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
