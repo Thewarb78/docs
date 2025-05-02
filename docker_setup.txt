@@ -503,3 +503,20 @@ Write-Host "Total number of folders in library '$libraryName': $totalFolders"
 $web.Dispose()
 $site.Dispose()
 
+####
+
+SELECT 
+    DocId,
+    COUNT(*) AS VersionCount,
+    MAX(Version) AS MaxVersion,
+    LeafName,
+    DirName
+FROM 
+    AllDocVersions WITH (NOLOCK)
+WHERE 
+    LeafName LIKE '%.one%' AND
+    DirName LIKE 'sites/marketing%'  -- Adjust to your site's path
+GROUP BY 
+    DocId, LeafName, DirName
+ORDER BY 
+    VersionCount DESC;
