@@ -526,3 +526,53 @@ ORDER BY
 SELECT COUNT(*) AS VersionRowCount
 FROM AllDocVersions WITH (NOLOCK)
 WHERE SiteId = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
+
+Add-PSSnapin Microsoft.SharePoint.PowerShell -ErrorAction SilentlyContinue
+
+$results = @()
+
+$sites = Get-SPSite -Limit All
+
+foreach ($site in $sites) {
+    try {
+        # Check if the Publishing feature is activated at the Site Collection level
+        $siteFeatures = Get-SPFeature -Site $site -ErrorAction SilentlyContinue
+        if ($siteFeatures.DisplayName -contains "PublishingSite") {
+            $results += [PSCustomObject]@{
+                Url      = $site.Url
+                Level    = "Site Collection"
+                Feature  = "PublishingSite"
+            }
+        }
+
+        foreach ($web in $site.AllWebs) {
+            try {
+                $webFeatures = Get-SPFeature -Web $web -ErrorAction SilentlyContinue
+                if ($webFeatures.DisplayName -contains "PublishingWeb") {
+                    $results += [PSCustomObject]@{
+                        Url      = $web.Url
+                        Level    = "Web"
+                        Feature  = "PublishingWeb"
+                    }
+                }
+            } catch {
+                Write-Warning "Error accessing web: $($_.Exception.Message)"
+            } finally {
+                $web.Dispose()
+            }
+        }
+
+    } catch {
+        Write-Warning "Error accessing site collection: $($_.Exception.Message)"
+    } finally {
+        $site.Dispose()
+    }
+}
+
+# Output results
+$results | Format-Table -AutoSize
+
+# Optional: Export to CSV
+$results | Export-Csv "C:\Temp\PublishingSites.csv" -NoTypeInformation
+
+Write-Host "✅ Finished scanning for publishing-enabled sites." -ForegroundColor Green
