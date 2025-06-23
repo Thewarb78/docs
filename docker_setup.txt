@@ -579,33 +579,37 @@ Write-Host "✅ Finished scanning for publishing-enabled sites." -ForegroundColo
 
 
 ###
-
- Add-PSSnapin Microsoft.SharePoint.PowerShell -ErrorAction SilentlyContinue
+Add-PSSnapin Microsoft.SharePoint.PowerShell -ErrorAction SilentlyContinue
 
 $svc = [Microsoft.SharePoint.Administration.SPDiagnosticsService]::Local
 
-# Build a simulated override dictionary from real categories
+# Build a simulated override dictionary (key = category path, value = trace level)
 $overrides = @{}
-$allKeys = @()
+$keys = New-Object System.Collections.Generic.List[string]
 
 foreach ($area in $svc.Areas) {
     foreach ($cat in $area.DiagnosticsCategories.Values) {
         $key = "$($area.Name)\$($cat.Name)"
-        $overrides[$key] = $cat.TraceSeverity
-        $allKeys += $key
+        if (-not $overrides.ContainsKey($key)) {
+            $overrides[$key] = $cat.TraceSeverity
+            $keys.Add($key)
+        }
     }
 }
 
-# Now simulate what TraceLevelOverrideStop would do — lookup per request
+Write-Host "Total diagnostic categories: $($keys.Count)"
+
+# Simulate TraceLevelOverrideStop dictionary lookups
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
-foreach ($k in $allKeys) {
-    $dummy = $null
-    $exists = $overrides.TryGetValue($k, [ref]$dummy)
+foreach ($key in $keys) {
+    $null = $null
+    $exists = $overrides.TryGetValue($key, [ref]$null)
 }
 
 $sw.Stop()
 
-Write-Host "Simulated one TraceLevelOverrideStop-style dictionary lookup pass"
-Write-Host "Checked $($allKeys.Count) keys"
-Write-Host "Took $($sw.ElapsedMilliseconds) ms"
+Write-Host "`n✅ Simulated TraceLevelOverrideStop dictionary evaluation"
+Write-Host "🔎 Categories checked: $($keys.Count)"
+Write-Host "⏱ Time taken: $($sw.ElapsedMilliseconds) ms"
+
