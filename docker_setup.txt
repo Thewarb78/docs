@@ -576,3 +576,36 @@ $results | Format-Table -AutoSize
 $results | Export-Csv "C:\Temp\PublishingSites.csv" -NoTypeInformation
 
 Write-Host "✅ Finished scanning for publishing-enabled sites." -ForegroundColor Green
+
+
+###
+
+ Add-PSSnapin Microsoft.SharePoint.PowerShell -ErrorAction SilentlyContinue
+
+$svc = [Microsoft.SharePoint.Administration.SPDiagnosticsService]::Local
+
+# Build a simulated override dictionary from real categories
+$overrides = @{}
+$allKeys = @()
+
+foreach ($area in $svc.Areas) {
+    foreach ($cat in $area.DiagnosticsCategories.Values) {
+        $key = "$($area.Name)\$($cat.Name)"
+        $overrides[$key] = $cat.TraceSeverity
+        $allKeys += $key
+    }
+}
+
+# Now simulate what TraceLevelOverrideStop would do — lookup per request
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+foreach ($k in $allKeys) {
+    $dummy = $null
+    $exists = $overrides.TryGetValue($k, [ref]$dummy)
+}
+
+$sw.Stop()
+
+Write-Host "Simulated one TraceLevelOverrideStop-style dictionary lookup pass"
+Write-Host "Checked $($allKeys.Count) keys"
+Write-Host "Took $($sw.ElapsedMilliseconds) ms"
