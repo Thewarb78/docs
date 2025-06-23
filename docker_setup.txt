@@ -613,3 +613,13 @@ Write-Host "`n✅ Simulation complete"
 Write-Host "⏱ Lookup time: $($sw.ElapsedMilliseconds) ms"
 Write-Host "🔍 Keys checked: $($keyList.Count)"
 Write-Host "📦 Dictionary size: $($overrideDictionary.Count)"
+
+####
+
+$targetTime = Get-Date "2025-06-20 14:10"
+$before = $targetTime.AddMinutes(5)
+$after = $targetTime.AddMinutes(-5)
+
+Get-SPTimerJob | Where-Object {
+    $_.LastRunTime -ge $after -and $_.LastRunTime -le $before
+} | Select DisplayName, LastRunTime, TypeName
