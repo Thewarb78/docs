@@ -623,3 +623,91 @@ $after = $targetTime.AddMinutes(-5)
 Get-SPTimerJob | Where-Object {
     $_.LastRunTime -ge $after -and $_.LastRunTime -le $before
 } | Select DisplayName, LastRunTime, TypeName
+
+###
+
+Title:
+High CPU usage in w3wp.exe and owstimer.exe following SharePoint 2016 patch (16.0.5478.1000), linked to ULS.SendTrace and Dictionary.TryGetValue
+
+🧩 Problem Overview:
+Since deploying the March 2024 CU (build 16.0.5478.1000) to our SharePoint 2016 farms, we have observed intermittent but severe CPU spikes, impacting both:
+
+w3wp.exe worker processes (App Pools)
+
+owstimer.exe (SharePoint Timer Service)
+
+The behavior is consistent across multiple farms, in different geographic regions, with different AV policies and different usage patterns — but all running Server 2019 and patched to this build.
+
+🔍 Observed Technical Behavior:
+1. w3wp.exe High CPU (App Pools)
+Spikes are traced in Dynatrace to:
+
+ULS.SendTrace
+
+TraceRaiseEventMgdHandler
+
+.NET Dictionary<TKey,TValue>.TryGetValue
+
+CPU usage occurs even with:
+
+Default logging levels
+
+No custom trace categories
+
+Publishing-related logging disabled
+
+Affected categories include SharePoint.Publishing, but also others, suggesting a global trace evaluation issue, not just one area.
+
+2. owstimer.exe CPU Spikes
+owstimer.exe intermittently shows similar high CPU usage
+
+Not instrumented in Dynatrace — but we observed logging activity to:
+
+C:\Users\...\AppData\Local\Temp\DCacheAdministration...
+
+Suggests Distributed Cache or configuration-related timer jobs are triggering trace logic internally
+
+ULS logs show the same Dictionary.TryGetValue activity in ULS.SendTrace
+
+❌ What We've Ruled Out
+Potential Cause	Status
+AV interference	❌ Ruled out — proper exclusions confirmed across all farms
+Excessive trace volume	❌ Logging set to None for all categories — issue persists
+Misconfigured logging overrides	❌ Clear-SPLogLevel run; all log levels confirmed at default
+Custom solutions	✅ We have reviewed deployed WSPs and nothing changed recently
+Publishing alone	❌ Disabling Publishing logging had no effect
+Timer job misfire	🟡 Inconclusive, but no unusual jobs found in logs during spikes
+
+🧪 Conclusion / Hypothesis
+There appears to be a regression in trace logging logic introduced by the March 2024 CU, whereby:
+
+Logging category dictionary evaluations are invoked on every request, or background job
+
+These dictionary lookups are not efficiently cached, or are being repeatedly re-evaluated
+
+It impacts trace path evaluation, even when logging output is fully disabled
+
+The behavior did not occur prior to this patch and is only present on Server 2019 hosts
+
+📝 What We Need from Microsoft
+Confirmation of changes to trace evaluation, logging override logic, or diagnostic infrastructure in/around 16.0.5478.1000
+
+Review of known issues involving:
+
+ULS.SendTrace
+
+SPDiagnosticsServiceBase
+
+Publishing modules and trace categories
+
+Suggested hotfix or rollback plan (if applicable)
+
+A reproducible scenario (or test guidance) we can use to confirm this without impacting live usage
+
+💬 Optional Additional Notes
+Some affected endpoints during spikes: sites.asmx, sharedaccess.asmx, GetUpdatedFormDigest
+
+We attempted to trigger the issue via synthetic traffic to publishing sites — no immediate effect
+
+The farms are otherwise stable, but trace-related CPU overhead is degrading performance significantly
+
