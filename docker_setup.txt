@@ -718,14 +718,12 @@ if ((Get-PSSnapin -Name Microsoft.SharePoint.PowerShell -ErrorAction SilentlyCon
     Add-PSSnapin Microsoft.SharePoint.PowerShell
 }
 
-# Get all diagnostic logging categories
+# Get all logging categories
 $allCategories = Get-SPLogLevel
 
-# Set each category's trace and event severity
+# Loop through and set the levels
 foreach ($category in $allCategories) {
-    Set-SPLogLevel -Identity $category.Identity -TraceSeverity High -EventSeverity Error
+    Set-SPLogLevel -TraceSeverity High -EventSeverity Error -Area $category.Area -Name $category.Name
 }
 
-Write-Host "All logging categories set to TraceSeverity: High and EventSeverity: Error"
-
-
+Write-Host "All logging categories updated: TraceSeverity = High, EventSeverity = Error"
