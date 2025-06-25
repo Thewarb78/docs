@@ -711,3 +711,21 @@ We attempted to trigger the issue via synthetic traffic to publishing sites — 
 
 The farms are otherwise stable, but trace-related CPU overhead is degrading performance significantly
 
+###
+
+# Load SharePoint snap-in if not already loaded
+if ((Get-PSSnapin -Name Microsoft.SharePoint.PowerShell -ErrorAction SilentlyContinue) -eq $null) {
+    Add-PSSnapin Microsoft.SharePoint.PowerShell
+}
+
+# Get all diagnostic logging categories
+$allCategories = Get-SPLogLevel
+
+# Set each category's trace and event severity
+foreach ($category in $allCategories) {
+    Set-SPLogLevel -Identity $category.Identity -TraceSeverity High -EventSeverity Error
+}
+
+Write-Host "All logging categories set to TraceSeverity: High and EventSeverity: Error"
+
+
