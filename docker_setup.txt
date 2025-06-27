@@ -727,3 +727,30 @@ foreach ($category in $allCategories) {
 }
 
 Write-Host "All logging categories updated: TraceSeverity = High, EventSeverity = Error"
+
+###
+
+$logRoot = "C:\ProgramData\dynatrace\oneagent\log"
+$since = (Get-Date).AddDays(-1)
+$keywords = @("LogRequest", "timeout", "PurePath", "span", "callback", "Async", "Exception", "flush", "export", "took", "duration")
+
+# Get all log files modified in the last day
+$logFiles = Get-ChildItem -Path $logRoot -Recurse -Include *.log -File |
+    Where-Object { $_.LastWriteTime -gt $since }
+
+foreach ($file in $logFiles) {
+    try {
+        $lines = Get-Content $file.FullName
+        $matches = $lines | Where-Object {
+            $line = $_.ToLower()
+            $keywords | ForEach-Object { $line -like "*$_*" }
+        }
+        if ($matches) {
+            Write-Host "`n===== Matches in $($file.FullName) =====" -ForegroundColor Cyan
+            $matches | ForEach-Object { Write-Host $_ -ForegroundColor Yellow }
+        }
+    }
+    catch {
+        Write-Warning "Failed to read $($file.FullName): $_"
+    }
+}
