@@ -754,3 +754,19 @@ foreach ($file in $logFiles) {
         Write-Warning "Failed to read $($file.FullName): $_"
     }
 }
+
+"applicationMatchRules": [
+  {
+    "applicationMatchType": "MATCHES",
+    "matchers": [
+      {
+        "matcherType": "DOMAIN",
+        "value": "app1.example.com"
+      },
+      {
+        "matcherType": "URL_STARTS_WITH",
+        "value": "https://example.com/path"
+      }
+    ]
+  }
+]
