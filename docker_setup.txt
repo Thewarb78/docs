@@ -837,3 +837,99 @@ while ($true) {
     Start-Sleep -Seconds $intervalSeconds
 }
 
+###
+
+# CONFIG
+$logFile = "C:\Logs\AD_HealthMonitor_EnsureUser.log"
+$intervalSeconds = 60
+$domainName = (Get-WmiObject Win32_ComputerSystem).Domain
+$siteName = (nltest /dsgetsite 2>&1)[0].Trim()
+$webUrl = "https://your.site.url"
+$usersToCheck = @(
+    "i:0#.w|DOMAIN1\user1",
+    "i:0#.w|DOMAIN2\user2"
+)
+
+# Ensure log folder exists
+$logFolder = [System.IO.Path]::GetDirectoryName($logFile)
+if (!(Test-Path $logFolder)) {
+    New-Item -ItemType Directory -Path $logFolder | Out-Null
+}
+
+Write-Host "Starting AD + SharePoint EnsureUser monitor loop..."
+
+# Get SPWeb context once
+try {
+    $web = Get-SPWeb $webUrl
+} catch {
+    Write-Error "Failed to open SPWeb at $webUrl. Exiting."
+    return
+}
+
+while ($true) {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $dc = "UNKNOWN"
+    $ldapTime = "N/A"
+    $nltestDc = "UNKNOWN"
+    $nltestError = $null
+    $logLines = @()
+
+    try {
+        # Get DC via .NET
+        $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+        $dc = $domain.PdcRoleOwner.Name
+
+        # Time a basic LDAP user query
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $searcher = New-Object System.DirectoryServices.DirectorySearcher
+        $searcher.Filter = "(objectClass=user)"
+        $searcher.PageSize = 1
+        $result = $searcher.FindOne()
+        $sw.Stop()
+        $ldapTime = $sw.ElapsedMilliseconds
+        $status = if ($result) { "OK" } else { "NoResult" }
+    } catch {
+        $status = "LDAP_FAIL: $($_.Exception.Message)"
+    }
+
+    try {
+        # DC detection via nltest
+        $nltestOutput = nltest /dsgetdc:$domainName 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $nltestDc = ($nltestOutput | Select-String "DC:" | ForEach-Object { ($_ -split ":")[1].Trim() })[0]
+        } else {
+            $nltestError = $nltestOutput -join " "
+        }
+    } catch {
+        $nltestError = $_.Exception.Message
+    }
+
+    $logLines += "$timestamp | AD Site: $siteName | PDC: $dc | LDAP: ${ldapTime}ms | Status: $status | NLTEST_DC: $nltestDc"
+    if ($nltestError) {
+        $logLines += "$timestamp | NLTEST_ERR: $nltestError"
+    }
+
+    # Now run EnsureUser for each test user
+    foreach ($loginName in $usersToCheck) {
+        try {
+            $eusw = [System.Diagnostics.Stopwatch]::StartNew()
+            $spUser = $web.EnsureUser($loginName)
+            $eusw.Stop()
+            $eusElapsed = $eusw.ElapsedMilliseconds
+            $eusStatus = "OK"
+        } catch {
+            $eusw.Stop()
+            $eusElapsed = $eusw.ElapsedMilliseconds
+            $eusStatus = "FAIL: $($_.Exception.Message)"
+        }
+        $logLines += "$timestamp | EnsureUser | $loginName | Time: ${eusElapsed}ms | Status: $eusStatus"
+    }
+
+    # Output and write to file
+    $logLines | ForEach-Object {
+        Write-Host $_
+        Add-Content -Path $logFile -Value $_
+    }
+
+    Start-Sleep -Seconds $intervalSeconds
+}
