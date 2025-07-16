@@ -933,3 +933,18 @@ while ($true) {
 
     Start-Sleep -Seconds $intervalSeconds
 }
+
+####
+
+[
+  {
+    "UserProfile": {
+      "EmployeeId": "THEIR_EMP_ID",
+      "SamAccountName": "DOMAIN\\them",
+      "EmailId": "them@example.com"
+    },
+    "SiteCollection": {
+      "SPGuid": "actual-guid-from-site"
+    }
+  }
+]
