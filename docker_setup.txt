@@ -949,6 +949,37 @@ while ($true) {
   }
 ]
 
-I noticed the access mode is categorised as "Window Explorer" for this issue, so obviously that comes with unknowns — as it's not a recommended or supported method of interacting with SharePoint. I believe Magali has asked Microsoft if they have any KPIs on response times.
+####
 
-Charles, could you please raise a ticket for this and follow up with the end user (or Gregory) to gather more detail — including the exact timestamp, site URL, and what specifically occurred? It would also be helpful to see if the issue can be reproduced and whether there are any indicators of client-side factors (e.g. network/VPN issues, local config).
+$bucket = "your-bucket-name"
+$prefix = "out/"
+$localDownloadPath = "C:\path\to\download"
+$cutoffTime = (Get-Date).ToUniversalTime().AddDays(-1)
+
+# Ensure download path exists
+if (-not (Test-Path $localDownloadPath)) {
+    New-Item -ItemType Directory -Path $localDownloadPath | Out-Null
+}
+
+# Get all files in the "out/" folder
+$objects = aws s3api list-objects-v2 --bucket $bucket --prefix $prefix | ConvertFrom-Json
+
+$matchedObjects = $objects.Contents |
+    Where-Object {
+        $_.Key -like "*reports*" -and
+        ([datetime]$_.LastModified) -gt $cutoffTime
+    }
+
+foreach ($obj in $matchedObjects) {
+    $s3Key = $obj.Key
+    $relativePath = $s3Key.Substring($prefix.Length)  # Remove 'out/' from the start
+    $localFilePath = Join-Path $localDownloadPath $relativePath
+    $localDir = Split-Path $localFilePath
+
+    if (-not (Test-Path $localDir)) {
+        New-Item -ItemType Directory -Path $localDir -Force | Out-Null
+    }
+
+    Write-Host "Downloading $s3Key → $localFilePath"
+    aws s3 cp "s3://$bucket/$s3Key" "$localFilePath"
+}
