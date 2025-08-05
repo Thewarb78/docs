@@ -983,3 +983,12 @@ foreach ($obj in $matchedObjects) {
     Write-Host "Downloading $s3Key → $localFilePath"
     aws s3 cp "s3://$bucket/$s3Key" "$localFilePath"
 }
+
+- name: Check if .NET SDK 8.0.412 is installed
+  win_reg_stat:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A9535A07-8759-46F3-A1A7-1A773E7289F7}
+  register: dotnet_installed
+
+- name: Install .NET SDK
+  win_command: '"{{ temp_area }}\\{{ dotnet_msi }}" /install /quiet /norestart'
+  when: not dotnet_installed.exists
