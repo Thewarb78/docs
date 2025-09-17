@@ -1180,3 +1180,48 @@ try:
     print("BODY:", r.text[:200], "...")
 except Exception as e:
     print("ERROR:", repr(e))
+
+####
+
+# tls_handshake_probe.py
+import ssl, socket
+
+HOST = ""
+PORT = 443
+
+CIPHERS = [
+    "AES128-GCM-SHA256",
+    "AES256-GCM-SHA384",
+    "AES128-SHA256",
+    "AES256-SHA256",
+    "AES128-SHA",
+    "AES256-SHA",
+    "DES-CBC3-SHA",
+]
+
+def try_once(cipher, server_hostname=True):
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    ctx.set_ciphers(f"{cipher}:@SECLEVEL=1")
+    if hasattr(ssl, "OP_LEGACY_SERVER_CONNECT"):
+        ctx.options |= ssl.OP_LEGACY_SERVER_CONNECT
+    try:
+        with socket.create_connection((HOST, PORT), timeout=8) as sock:
+            hn = HOST if server_hostname else None  # toggle SNI
+            with ctx.wrap_socket(sock, server_hostname=hn) as ss:
+                print(f"OK  {cipher:20s} → {ss.version()}  {ss.cipher()}")
+                return True
+    except Exception as e:
+        print(f"FAIL {cipher:20s} → {e!r}")
+        return False
+
+print("=== With SNI ===")
+any_ok = False
+for c in CIPHERS:
+    any_ok |= try_once(c, server_hostname=True)
+
+print("\n=== Without SNI ===")
+for c in CIPHERS:
+    any_ok |= try_once(c, server_hostname=False)
+
+print("\nRESULT:", "at least one handshake succeeded" if any_ok else "all handshakes failed")
+
