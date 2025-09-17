@@ -1350,3 +1350,17 @@ try:
     print("BODY:", r.text[:300], "...")
 except Exception as e:
     print("ERROR:", repr(e))
+
+# Build path to user's local AppData
+$pyIniPath = Join-Path $env:LOCALAPPDATA "py.ini"
+
+# Content we want
+$iniContent = @"
+[defaults]
+python=3.10
+"@
+
+# Write it out (overwrite if exists)
+Set-Content -Path $pyIniPath -Value $iniContent -Encoding ASCII
+
+Write-Host "Created py.ini at $pyIniPath pointing default to Python 3.10"
