@@ -1256,3 +1256,61 @@ def _patched(*a, **k):
 
 sslmod.create_urllib3_context = _patched
 
+###
+
+#!/usr/bin/env python3
+"""
+simpleCheck.py
+- patch urllib3's SSL context to force a compatible TLS1.2 cipher (AES128-GCM-SHA256)
+- ensure requests bypasses proxies for the target host
+- perform a simple GET and print result
+"""
+
+import os
+# ensure we bypass proxies for the target host (lower/upper to be safe)
+TARGET_HOST = ""
+os.environ["NO_PROXY"] = TARGET_HOST
+os.environ["no_proxy"] = TARGET_HOST
+
+import ssl
+import requests
+
+# monkey-patch urllib3's context factory so requests/urllib3 uses our cipher/seclevel
+try:
+    import urllib3.util.ssl_ as sslmod
+except Exception:
+    # older installs might be slightly different; fall back to urllib3.util.ssl_
+    import urllib3.util.ssl_ as sslmod
+
+_old = sslmod.create_urllib3_context
+
+def _patched(*a, **k):
+    ctx = _old(*a, **k)
+    # force a cipher we proved works and allow legacy security level 1
+    ctx.set_ciphers("AES128-GCM-SHA256:@SECLEVEL=1")
+    # restrict to TLS1.2 (server doesn't offer TLS1.3)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+    # help with some buggy servers if available
+    if hasattr(ssl, "OP_LEGACY_SERVER_CONNECT"):
+        ctx.options |= ssl.OP_LEGACY_SERVER_CONNECT
+    return ctx
+
+sslmod.create_urllib3_context = _patched
+
+# Build session and force it to ignore environment proxies (use direct connection)
+s = requests.Session()
+s.trust_env = False   # ignore HTTP(S)_PROXY env vars, use direct connection
+
+URL = f"https://{TARGET_HOST}/api/v2/tokens"  # change path as needed
+
+try:
+    r = s.get(URL, timeout=20)
+    print("STATUS:", r.status_code)
+    print("BODY (first 400 chars):")
+    print(r.text[:400])
+except Exception as e:
+    print("ERROR:", repr(e))
+    # print a little more detail for debugging
+    import traceback
+    traceback.print_exc(limit=1)
