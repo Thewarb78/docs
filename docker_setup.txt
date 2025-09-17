@@ -1239,3 +1239,20 @@ def _patched(*a, **k):
     return ctx
 
 sslmod.create_urllib3_context = _patched
+
+
+###
+
+import ssl
+import urllib3.util.ssl_ as sslmod
+
+_old = sslmod.create_urllib3_context
+def _patched(*a, **k):
+    ctx = _old(*a, **k)
+    ctx.set_ciphers("AES128-GCM-SHA256:@SECLEVEL=1")
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
+
+sslmod.create_urllib3_context = _patched
+
