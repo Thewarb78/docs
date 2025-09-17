@@ -1078,7 +1078,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import create_urllib3_context
 
 # ====== CONFIG ======
-URL = "https://tower.cib.echonext/api/v2/tokens"   # change path if needed
+URL = "#"   # change path if needed
 HEADERS = {"Authorization": "Basic <redacted>"}     # set if needed
 
 # If you have a client cert (mTLS), set one of these:
