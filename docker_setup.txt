@@ -1151,3 +1151,32 @@ if __name__ == "__main__":
         attempt("4) legacy + client cert", legacy_with_client_cert_session)
     else:
         print("\n(Skipping mTLS test – no client cert configured)")
+
+###
+
+#!/usr/bin/env python3
+import ssl
+import requests
+import urllib3.util.ssl_ as sslmod
+
+# ---- TLS monkey-patch ----
+_old = sslmod.create_urllib3_context
+def _patched(*a, **k):
+    ctx = _old(*a, **k)
+    ctx.set_ciphers("ALL:@SECLEVEL=1")
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+    if hasattr(ssl, "OP_LEGACY_SERVER_CONNECT"):
+        ctx.options |= ssl.OP_LEGACY_SERVER_CONNECT
+    return ctx
+sslmod.create_urllib3_context = _patched
+# --------------------------
+
+URL = "#"
+
+try:
+    r = requests.get(URL, timeout=20)
+    print("STATUS:", r.status_code)
+    print("BODY:", r.text[:200], "...")
+except Exception as e:
+    print("ERROR:", repr(e))
