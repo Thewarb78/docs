@@ -1070,3 +1070,84 @@ def _patched(*a, **k):
 sslmod.create_urllib3_context = _patched
 
 #####
+
+#!/usr/bin/env python3
+import os, ssl, traceback
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import create_urllib3_context
+
+# ====== CONFIG ======
+URL = "https://tower.cib.echonext/api/v2/tokens"   # change path if needed
+HEADERS = {"Authorization": "Basic <redacted>"}     # set if needed
+
+# If you have a client cert (mTLS), set one of these:
+CLIENT_CERT_PEM = None  # e.g. r"C:\path\client.crt"
+CLIENT_KEY_PEM  = None  # e.g. r"C:\path\client.key"
+
+PFX_FILE = None         # e.g. r"C:\path\client.pfx"
+PFX_PASS = ""           # password if needed
+# =====================
+
+def attempt(name, session_builder):
+    print(f"\n=== {name} ===")
+    try:
+        s = session_builder()
+        r = s.post(URL, headers=HEADERS, timeout=20)
+        print("STATUS:", r.status_code)
+        print("OK, got response bytes:", len(r.content))
+    except Exception as e:
+        print("ERROR:", repr(e))
+        traceback.print_exc(limit=1)
+
+def vanilla_session():
+    s = requests.Session()
+    return s
+
+def legacy_ctx():
+    ctx = create_urllib3_context()
+    ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
+
+def legacy_session():
+    s = requests.Session()
+    s.mount("https://", HTTPAdapter(ssl_context=legacy_ctx()))
+    return s
+
+def legacy_no_proxy_session():
+    s = legacy_session()
+    # ensure proxies won't intercept this host
+    host = requests.utils.urlparse(URL).hostname
+    os.environ["NO_PROXY"] = host
+    os.environ["no_proxy"] = host
+    s.trust_env = True
+    return s
+
+def legacy_with_client_cert_session():
+    s = legacy_session()
+    if CLIENT_CERT_PEM and CLIENT_KEY_PEM:
+        s.cert = (CLIENT_CERT_PEM, CLIENT_KEY_PEM)
+        return s
+    if PFX_FILE:
+        # requires: pip install requests-pkcs12
+        from requests_pkcs12 import Pkcs12Adapter
+        s.mount("https://", Pkcs12Adapter(pkcs12_filename=PFX_FILE,
+                                          pkcs12_password=PFX_PASS))
+        return s
+    raise RuntimeError("No client cert configured (PEM or PFX).")
+
+if __name__ == "__main__":
+    print("Python:", ssl.OPENSSL_VERSION)
+    print("Proxies from env:",
+          {k: v for k, v in os.environ.items() if k.lower() in ("http_proxy","https_proxy","no_proxy","no_proxy")})
+
+    attempt("1) vanilla", vanilla_session)
+    attempt("2) legacy seclevel=1 (TLS1.2)", legacy_session)
+    attempt("3) legacy + NO_PROXY for host", legacy_no_proxy_session)
+
+    if any([CLIENT_CERT_PEM and CLIENT_KEY_PEM, PFX_FILE]):
+        attempt("4) legacy + client cert", legacy_with_client_cert_session)
+    else:
+        print("\n(Skipping mTLS test – no client cert configured)")
