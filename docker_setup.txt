@@ -1012,3 +1012,27 @@ O_default = company
 
 CN = Common Name (e.g., server FQDN or YOUR name)
 CN_default = myapp-client-cert
+
+###
+
+openssl_conf = default_conf
+[ default_conf ]
+ssl_conf = ssl_sect
+[ ssl_sect ]
+system_default = system_default_sect
+[ system_default_sect ]
+CipherString = DEFAULT:@SECLEVEL=1
+
+###
+
+TESTING
+
+$env:OPENSSL_CONF="C:\path\to\openssl_client.cnf"
+python your_script.py
+
+###
+
+PERM 
+
+setx OPENSSL_CONF "C:\path\to\openssl_client.cnf"
+
