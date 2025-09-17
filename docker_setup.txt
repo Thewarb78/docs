@@ -1054,16 +1054,19 @@ ssl.create_default_context = _legacy_context
 
 #####
 
-import ssl
-import urllib3.util.ssl_ as sslmod
-
 _old = sslmod.create_urllib3_context
 def _patched(*a, **k):
     c = _old(*a, **k)
-    c.set_ciphers("DEFAULT:@SECLEVEL=1")
+    # Allow all legacy suites OpenSSL 3 will permit at seclevel 1
+    c.set_ciphers("ALL:@SECLEVEL=1")
+    # Force TLS 1.2 (server has no TLS1.3)
     c.minimum_version = ssl.TLSVersion.TLSv1_2
     c.maximum_version = ssl.TLSVersion.TLSv1_2
+    # Help with some buggy servers
+    if hasattr(ssl, "OP_LEGACY_SERVER_CONNECT"):
+        c.options |= ssl.OP_LEGACY_SERVER_CONNECT
     return c
+
 sslmod.create_urllib3_context = _patched
 
 #####
