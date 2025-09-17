@@ -1314,3 +1314,39 @@ except Exception as e:
     # print a little more detail for debugging
     import traceback
     traceback.print_exc(limit=1)
+
+###
+
+#!/usr/bin/env python3
+# --- put this BEFORE importing requests ---
+import os, ssl
+import urllib3.util.ssl_ as sslmod
+
+TARGET_HOST = ""
+
+# bypass proxies for this host and ignore env proxies entirely
+os.environ["NO_PROXY"] = TARGET_HOST
+os.environ["no_proxy"] = TARGET_HOST
+
+_old = sslmod.create_urllib3_context
+def _patched(*a, **k):
+    ctx = _old(*a, **k)
+    ctx.set_ciphers("AES128-GCM-SHA256:@SECLEVEL=1")
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
+sslmod.create_urllib3_context = _patched
+# -----------------------------------------
+
+import requests
+
+s = requests.Session()
+s.trust_env = False  # ignore HTTP(S)_PROXY completely
+
+URL = f"https://{TARGET_HOST}/api/v2/tokens"  # adjust path if needed
+try:
+    r = s.get(URL, timeout=20)
+    print("STATUS:", r.status_code)
+    print("BODY:", r.text[:300], "...")
+except Exception as e:
+    print("ERROR:", repr(e))
