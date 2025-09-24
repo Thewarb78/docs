@@ -1417,3 +1417,7 @@ make install
       - --with-http_sub_module
   args:
     chdir: "/tmp/{{ nginx_name }}"
+
+    ###
+
+    ./configure --prefix=/usr/share/nginx --conf-path=/etc/nginx/nginx.conf --lock-path=/var/lock/nginx.lock --pid-path=/run/nginx.pid --modules-path=/usr/lib/nginx/modules --http-log-path=/var/log/nginx/access.log --error-log-path=/var/log/nginx/error.log --with-compat --with-debug --with-pcre-jit --with-http_ssl_module --with-http_stub_status_module --with-http_realip_module --with-http_auth_request_module --with-http_v2_module --with-http_dav_module --with-http_slice_module --with-threads --with-http_addition_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_sub_module
