@@ -1364,3 +1364,56 @@ python=3.10
 Set-Content -Path $pyIniPath -Value $iniContent -Encoding ASCII
 
 Write-Host "Created py.ini at $pyIniPath pointing default to Python 3.10"
+
+
+###
+
+Check if openssl header there:
+
+dpkg -l | grep libssl-dev
+
+Check openssl
+
+apt-get install -y libssl-dev zlib1g-dev libpcre3 libpcre3-dev build-essential pkg-config
+
+Rebuild from source
+
+rm -rf /tmp/nginx-1.26.3
+tar -xzf /tmp/nginx-1.26.3.tar.gz -C /tmp
+cd /tmp/nginx-1.26.3
+./configure --with-http_ssl_module --with-pcre-jit \
+  --prefix=/usr/share/nginx --conf-path=/etc/nginx/nginx.conf \
+  --pid-path=/run/nginx.pid --modules-path=/usr/lib/nginx/modules \
+  --http-log-path=/var/log/nginx/access.log --error-log-path=/var/log/nginx/error.log
+make -j"$(nproc)"
+make install
+
+####
+
+- name: Configure nginx (with SSL)
+  command:
+    argv:
+      - ./configure
+      - --with-http_ssl_module
+      - --with-pcre-jit
+      - --prefix=/usr/share/nginx
+      - --conf-path=/etc/nginx/nginx.conf
+      - --pid-path=/run/nginx.pid
+      - --modules-path=/usr/lib/nginx/modules
+      - --http-log-path=/var/log/nginx/access.log
+      - --error-log-path=/var/log/nginx/error.log
+      - --with-compat
+      - --with-debug
+      - --with-http_stub_status_module
+      - --with-http_realip_module
+      - --with-http_auth_request_module
+      - --with-http_v2_module
+      - --with-http_dav_module
+      - --with-http_slice_module
+      - --with-threads
+      - --with-http_addition_module
+      - --with-http_gunzip_module
+      - --with-http_gzip_static_module
+      - --with-http_sub_module
+  args:
+    chdir: "/tmp/{{ nginx_name }}"
