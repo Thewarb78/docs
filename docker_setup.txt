@@ -1427,39 +1427,9 @@ make install
 
 Clean
 
-# --- vars (defaults or play vars) ---
-# nginx_version: "1.26.3"
-# nginx_name: "nginx-{{ nginx_version }}"
-# nginx_src_dir: "/tmp/{{ nginx_name }}"
-
-# 0) (Optional) ensure deps are present (Ubuntu/Debian)
-- name: Build deps for nginx
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-    pkg:
-      - build-essential
-      - libpcre3
-      - libpcre3-dev
-      - zlib1g-dev
-      - libssl-dev
-      - pkg-config
-
-# 1) start from a clean tree
-- name: Remove previous nginx source dir
-  file:
-    path: "{{ nginx_src_dir }}"
-    state: absent
-
-- name: Unpack nginx {{ nginx_version }}
-  unarchive:
-    src: "/tmp/{{ nginx_name }}.tar.gz"
-    dest: /tmp
-    remote_src: true
-    creates: "{{ nginx_src_dir }}/configure"
-
-# 2) configure (argv so no backslash bugs)
-- name: Configure nginx (SSL + PCRE JIT)
+- name: Configuring and installing {{ nginx_name }}
+  become: yes
+  become_user: root
   command:
     argv:
       - ./configure
@@ -1468,6 +1438,11 @@ Clean
       - --lock-path=/var/lock/nginx.lock
       - --pid-path=/run/nginx.pid
       - --modules-path=/usr/lib/nginx/modules
+      - --http-client-body-temp-path=/var/lib/nginx/body
+      - --http-fastcgi-temp-path=/var/lib/nginx/fastcgi
+      - --http-proxy-temp-path=/var/lib/nginx/proxy
+      - --http-scgi-temp-path=/var/lib/nginx/scgi
+      - --http-uwsgi-temp-path=/var/lib/nginx/uwsgi
       - --http-log-path=/var/log/nginx/access.log
       - --error-log-path=/var/log/nginx/error.log
       - --with-compat
@@ -1485,34 +1460,34 @@ Clean
       - --with-http_gunzip_module
       - --with-http_gzip_static_module
       - --with-http_sub_module
-      # if you need custom linker opts, keep as ONE argv item:
-      # - --with-ld-opt='-Wl,-Bsymbolic-functions -flto=auto -Wl,-z,relro -Wl,-z,now -fPIC'
+      # linker opts can stay together in one arg:
+      - "--with-ld-opt=-Wl,-Bsymbolic-functions -flto=auto -Wl,-z,relro -Wl,-z,now -fPIC"
   args:
-    chdir: "{{ nginx_src_dir }}"
+    chdir: "/tmp/{{ nginx_name }}"
+  tags: nginx-build
 
-# 3) build
 - name: Compile nginx
+  become: yes
   command: make -j"{{ ansible_processor_vcpus | default(2) }}"
   args:
-    chdir: "{{ nginx_src_dir }}"
+    chdir: "/tmp/{{ nginx_name }}"
+  tags: nginx-build
 
-# (optional) stop a running binary so install can overwrite it
-- name: Stop running nginx if present
-  shell: "pkill nginx || true"
-
-# 4) install
 - name: Install nginx
+  become: yes
   command: make install
   args:
-    chdir: "{{ nginx_src_dir }}"
+    chdir: "/tmp/{{ nginx_name }}"
+  tags: nginx-build
 
-# 5) verify SSL is in the build, fail if not
 - name: Verify nginx was built with SSL
   command: /usr/share/nginx/sbin/nginx -V
   register: nginxv
   changed_when: false
+  tags: nginx-build
 
 - name: Assert SSL module present
   fail:
     msg: "nginx built WITHOUT SSL (no --with-http_ssl_module in configure args)"
   when: "'--with-http_ssl_module' not in nginxv.stderr"
+  tags: nginx-build
