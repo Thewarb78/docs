@@ -1491,3 +1491,52 @@ Clean
     msg: "nginx built WITHOUT SSL (no --with-http_ssl_module in configure args)"
   when: "'--with-http_ssl_module' not in nginxv.stderr"
   tags: nginx-build
+
+####
+
+- name: Backup existing keystore files if present
+  tags: 
+    - backup_keystores
+  block:
+    - name: Set backup timestamp
+      set_fact:
+        backup_ts: "{{ ansible_date_time.iso8601_basic_short }}"
+
+    - name: Define keystore paths
+      set_fact:
+        drill_dir: "{{ drill_app_dir }}/{{ drill_name }}"
+        p12_path: "{{ drill_app_dir }}/{{ drill_name }}/{{ drill_cert_cn }}.p12"
+        jks_path: "{{ drill_app_dir }}/{{ drill_name }}/{{ drill_cert_cn }}.jks"
+        backup_dir: "{{ drill_app_dir }}/{{ drill_name }}/backup"
+
+    - name: Ensure backup directory exists
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Check if p12 exists
+      stat:
+        path: "{{ p12_path }}"
+      register: p12_stat
+
+    - name: Check if jks exists
+      stat:
+        path: "{{ jks_path }}"
+      register: jks_stat
+
+    - name: Backup existing p12
+      copy:
+        src: "{{ p12_path }}"
+        dest: "{{ backup_dir }}/{{ drill_cert_cn }}.p12.{{ backup_ts }}"
+        remote_src: yes
+        mode: "0644"
+      when: p12_stat.stat.exists
+
+    - name: Backup existing jks
+      copy:
+        src: "{{ jks_path }}"
+        dest: "{{ backup_dir }}/{{ drill_cert_cn }}.jks.{{ backup_ts }}"
+        remote_src: yes
+        mode: "0644"
+      when: jks_stat.stat.exists
