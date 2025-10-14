@@ -1564,3 +1564,28 @@ spark-submit.cmd `
   --conf spark.driver.host=<windows-ip> `
   --conf spark.driver.bindAddress=0.0.0.0 `
   C:\Users\Matt\Desktop\test_job.py
+
+  ####
+
+  from pyspark.sql import SparkSession
+
+spark = (SparkSession.builder
+         .appName("SanityCheck")
+         .master("spark://<MASTER_IP>:7077")
+         .config("spark.driver.host","<WINDOWS_IP>")
+         .config("spark.driver.bindAddress","0.0.0.0")
+         .getOrCreate())
+
+print("Count:", spark.range(1, 1_000_000).count())
+spark.stop()
+
+
+###
+
+set PYSPARK_PYTHON=python
+set PYSPARK_DRIVER_PYTHON=python
+"C:\spark-3.3.4-bin-hadoop3\bin\spark-submit.cmd" ^
+  --master spark://<MASTER_IP>:7077 ^
+  --conf spark.driver.host=<WINDOWS_IP> ^
+  --conf spark.driver.bindAddress=0.0.0.0 ^
+  D:\test_job.py
