@@ -1540,3 +1540,27 @@ Clean
         remote_src: yes
         mode: "0644"
       when: jks_stat.stat.exists
+
+#####
+
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder \
+    .appName("WindowsToClusterTest") \
+    .master("spark://<master-host>:7077") \
+    .config("spark.driver.host", "<windows-ip>") \
+    .config("spark.driver.bindAddress", "0.0.0.0") \
+    .getOrCreate()
+
+data = spark.range(1, 1000000)
+print("Count:", data.count())
+
+spark.stop()
+
+####
+
+spark-submit.cmd `
+  --master spark://<master-host>:7077 `
+  --conf spark.driver.host=<windows-ip> `
+  --conf spark.driver.bindAddress=0.0.0.0 `
+  C:\Users\Matt\Desktop\test_job.py
