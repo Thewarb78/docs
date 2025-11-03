@@ -1589,3 +1589,29 @@ set PYSPARK_DRIVER_PYTHON=python
   --conf spark.driver.host=<WINDOWS_IP> ^
   --conf spark.driver.bindAddress=0.0.0.0 ^
   D:\test_job.py
+
+
+##
+
+execstart_cmd: "gunicorn -k uvicorn.workers.UvicornWorker --workers 3 --bind=127.0.0.1:{{ gunicorn_port }} manage:app"
+
+##
+
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return {"message": "Hello, FastAPI via Gunicorn + Uvicorn!"}
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
+# Optional: local dev runner
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("manage:app", host="127.0.0.1", port=8000, reload=True)
