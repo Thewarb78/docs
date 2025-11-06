@@ -1615,3 +1615,7 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("manage:app", host="127.0.0.1", port=8000, reload=True)
+
+###
+
+gunicorn -k uvicorn.workers.UvicornH11Worker --workers 1 --bind 127.0.0.1:8000 --access-logfile - --error-logfile - --log-level trace main:app
