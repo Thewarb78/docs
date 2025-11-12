@@ -1663,3 +1663,7 @@ cd /path/to/Python-3.11.x/
 sudo make clean
 sudo ./configure --enable-optimizations
 sudo make altinstall
+
+###
+
+python3 -c "import sqlite3; print(sqlite3.connect(':memory:'))"
