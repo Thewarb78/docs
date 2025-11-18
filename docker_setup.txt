@@ -1667,3 +1667,15 @@ sudo make altinstall
 ###
 
 python3 -c "import sqlite3; print(sqlite3.connect(':memory:'))"
+
+###
+
+gunicorn api_request_handler:app -k uvicorn.workers.UvicornWorker --workers 3 --bind 127.0.0.1:{{ gunicorn_port }} --timeout 300 --graceful-timeout 300 --max-requests 200 --max-requests-jitter 20 --log-level debug --access-logfile - --error-logfile -
+
+    proxy_connect_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+    send_timeout 300s;
+
+    proxy_request_buffering off;
+    proxy_buffering off;
