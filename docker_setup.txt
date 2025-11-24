@@ -1685,3 +1685,24 @@ curl -v \
   -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","id":"1","method":"tools.list","params":{}}' \
   https://url/
+
+###
+
+$headers = @{
+    "Accept" = "text/event-stream"
+    "Content-Type" = "application/json"
+}
+
+$body = @{
+    "jsonrpc" = "2.0"
+    "id"      = "1"
+    "method"  = "tools.list"
+    "params"  = @{}
+} | ConvertTo-Json
+
+Invoke-WebRequest `
+    -Uri "https://url" `
+    -Headers $headers `
+    -Method POST `
+    -Body $body `
+    -Verbose
