@@ -1679,3 +1679,9 @@ gunicorn api_request_handler:app -k uvicorn.workers.UvicornWorker --workers 3 --
 
     proxy_request_buffering off;
     proxy_buffering off;
+
+curl -v \
+  -H "Accept: text/event-stream" \
+  -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","id":"1","method":"tools.list","params":{}}' \
+  https://url/
