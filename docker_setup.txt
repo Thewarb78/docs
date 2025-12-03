@@ -1706,3 +1706,49 @@ Invoke-WebRequest `
     -Method POST `
     -Body $body `
     -Verbose
+
+###
+
+
+- block:
+
+    - name: Create Kerberos renew systemd service
+      copy:
+        dest: /etc/systemd/system/kerb-renew.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Renew Kerberos TGT for {{ service_account }}
+
+          [Service]
+          Type=oneshot
+          User={{ service_account }}
+          ExecStart=/usr/bin/kinit -k -t {{ keytab_path }} {{ kerberos_principal }} -c /var/lib/kerberos/krb5cc_{{ service_account }}
+
+    - name: Create Kerberos renew timer
+      copy:
+        dest: /etc/systemd/system/kerb-renew.timer
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Kerberos ticket renewal timer
+
+          [Timer]
+          OnBootSec=5m
+          OnUnitActiveSec=1h
+
+          [Install]
+          WantedBy=timers.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start the Kerberos renewal timer
+      systemd:
+        name: kerb-renew.timer
+        enabled: yes
+        state: started
+
+  tags:
+    - kerberos-renewal
