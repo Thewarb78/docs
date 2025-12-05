@@ -1752,3 +1752,20 @@ Invoke-WebRequest `
 
   tags:
     - kerberos-renewal
+
+####
+
+nginx -v
+which nginx
+systemctl status nginx
+
+####
+
+/usr/sbin/nginx -v              # apt version
+/usr/local/nginx/sbin/nginx -v # compiled version (if this path exists)
+
+####
+
+cat /lib/systemd/system/nginx.service
+# or
+cat /etc/systemd/system/nginx.service
