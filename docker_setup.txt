@@ -1813,3 +1813,13 @@ PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
+
+####
+
+sudo systemctl stop nginx
+sudo systemctl disable nginx
+sudo rm -f /etc/systemd/system/nginx.service
+sudo systemctl daemon-reload
+sudo rm -f /usr/sbin/nginx
+sudo rm -rf /usr/share/nginx
+sudo rm -rf /usr/lib/nginx
