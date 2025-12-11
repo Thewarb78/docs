@@ -1828,3 +1828,5 @@ sudo rm -rf /usr/lib/nginx
 ###
 
 systemctl stop nginx || true && systemctl disable nginx || true && systemctl unmask nginx || true && rm -f /etc/systemd/system/nginx.service && systemctl daemon-reload && rm -f /usr/sbin/nginx && rm -rf /usr/share/nginx /usr/lib/nginx /var/lib/nginx
+
+nginx -V 2>&1 | tr ' ' '\n' | grep -- '--with'
