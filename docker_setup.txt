@@ -1830,3 +1830,129 @@ sudo rm -rf /usr/lib/nginx
 systemctl stop nginx || true && systemctl disable nginx || true && systemctl unmask nginx || true && rm -f /etc/systemd/system/nginx.service && systemctl daemon-reload && rm -f /usr/sbin/nginx && rm -rf /usr/share/nginx /usr/lib/nginx /var/lib/nginx
 
 nginx -V 2>&1 | tr ' ' '\n' | grep -- '--with'
+
+###
+
+count objects in bad prefix
+
+aws s3 ls s3://PROBLEM_BUCKET/PROBLEM_PREFIX/ --recursive --summarize
+
+###
+
+# ============================================================
+# S3 OVERWRITE / METADATA STRESS TEST (PowerShell)
+#
+# PURPOSE:
+#   Demonstrate how LIST and DELETE operations degrade as
+#   object count grows, even when PUT (create) is stable.
+#
+#
+# SAFE USE:
+#   - ONLY run this in a TEST bucket / TEST prefix
+#   - This script DELETES objects
+#
+# ============================================================
+
+
+# ----------------------------
+# CONFIGURATION (EDIT THESE)
+# ----------------------------
+
+$Bucket  = "my-test-bucket"          # Test bucket ONLY
+$Prefix  = "overwrite-test/data"     # Test prefix ONLY
+$Objects = 5000                      # Number of objects to create
+$Cycles  = 3                         # Number of overwrite cycles
+
+
+# ----------------------------
+# HELPER FUNCTION
+# ----------------------------
+
+function Time-Step {
+    param (
+        [string]$Name,
+        [scriptblock]$Action
+    )
+
+    Write-Host "--------------------------------------------------"
+    Write-Host $Name
+    Write-Host "--------------------------------------------------"
+
+    $elapsed = Measure-Command { & $Action }
+
+    Write-Host ("Time taken: {0:N2} seconds" -f $elapsed.TotalSeconds)
+    Write-Host ""
+}
+
+
+# ----------------------------
+# STEP 0 — CLEAN START
+# Ensure prefix is empty
+# ----------------------------
+
+Write-Host "Cleaning test prefix to ensure a fresh start..."
+aws s3 rm "s3://$Bucket/$Prefix/" --recursive | Out-Null
+Write-Host "Prefix cleaned."
+Write-Host ""
+
+
+# ----------------------------
+# STEP 1 — INITIAL CREATE (PUT)
+# Simulates Spark writing data
+# ----------------------------
+
+Time-Step "CREATE: Uploading $Objects objects (PUT baseline)" {
+
+    for ($i = 1; $i -le $Objects; $i++) {
+        aws s3 cp NUL "s3://$Bucket/$Prefix/file-$i" | Out-Null
+    }
+}
+
+
+# ----------------------------
+# STEP 2 — LIST OBJECTS
+# Simulates Spark enumerating existing data
+# ----------------------------
+
+Time-Step "LIST: Enumerating objects under prefix" {
+
+    aws s3 ls "s3://$Bucket/$Prefix/" --recursive | Out-Null
+}
+
+
+# ----------------------------
+# STEP 3 — DELETE OBJECTS
+# Simulates Spark OVERWRITE cleanup
+# ----------------------------
+
+Time-Step "DELETE: Removing all objects (overwrite cleanup)" {
+
+    aws s3 rm "s3://$Bucket/$Prefix/" --recursive | Out-Null
+}
+
+
+# ----------------------------
+# STEP 4 — REPEAT OVERWRITE CYCLES
+# Shows degradation over time
+# ----------------------------
+
+for ($cycle = 1; $cycle -le $Cycles; $cycle++) {
+
+    Write-Host "================ OVERWRITE CYCLE $cycle ================"
+
+    Time-Step "RE-CREATE: Uploading $Objects objects" {
+
+        for ($i = 1; $i -le $Objects; $i++) {
+            aws s3 cp NUL "s3://$Bucket/$Prefix/file-$i" | Out-Null
+        }
+    }
+
+    Time-Step "DELETE: Removing objects (overwrite cleanup)" {
+
+        aws s3 rm "s3://$Bucket/$Prefix/" --recursive | Out-Null
+    }
+}
+
+Write-Host "=================================================="
+Write-Host "TEST COMPLETE"
+Write-Host "=================================================="
