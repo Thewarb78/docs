@@ -1956,3 +1956,20 @@ for ($cycle = 1; $cycle -le $Cycles; $cycle++) {
 Write-Host "=================================================="
 Write-Host "TEST COMPLETE"
 Write-Host "=================================================="
+
+###
+
+- name: Stop nginx service
+  ansible.builtin.service:
+    name: nginx
+    state: stopped
+  become: true
+
+- name: Remove nginx packages installed via dnf
+  ansible.builtin.dnf:
+    name:
+      - nginx
+      - nginx-core
+      - nginx-mod*
+    state: absent
+  become: true
