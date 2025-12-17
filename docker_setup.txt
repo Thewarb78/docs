@@ -1973,3 +1973,13 @@ Write-Host "=================================================="
       - nginx-mod*
     state: absent
   become: true
+
+####
+
+
+- name: Create unique archive
+  ansible.builtin.archive:
+    path: /data/d/d
+    dest: "/apps/backups/dss_data_{{ ansible_date_time.iso8601_basic }}.tar.gz"
+    format: gz
+  become: true
