@@ -1984,4 +1984,12 @@ Write-Host "=================================================="
     format: gz
   become: true
 
-  sdfdsf
+===
+
+python -c "import os,requests; os.environ['REQUESTS_CA_BUNDLE']='/path/to/your/internal-bundle.pem'; os.environ['SSL_CERT_FILE']='/path/to/your/internal-bundle.pem'; print(requests.get('https://your.internal.endpoint', timeout=10).status_code)"
+
+====
+
+python -c "import requests; print(requests.get('https://your.internal.endpoint', timeout=10).status_code)"
+
+
