@@ -1992,4 +1992,97 @@ python -c "import os,requests; os.environ['REQUESTS_CA_BUNDLE']='/path/to/your/i
 
 python -c "import requests; print(requests.get('https://your.internal.endpoint', timeout=10).status_code)"
 
+####
 
+cat > /tmp/node_disk_snapshot.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+OUT_DIR="${1:-/tmp}"
+TS="$(date +%F_%H%M%S)"
+HOST="$(hostname -f 2>/dev/null || hostname)"
+OUT="${OUT_DIR%/}/disk_snapshot_${HOST}_${TS}.txt"
+
+run() {
+  echo
+  echo "################################################################"
+  echo "# $*"
+  echo "################################################################"
+  bash -lc "$*" 2>&1 || echo "[non-zero exit: $?]"
+}
+
+{
+  echo "Snapshot file: $OUT"
+  echo "Host: $HOST"
+  echo "Date: $(date -Is)"
+  echo "Uptime: $(uptime -p 2>/dev/null || true)"
+  echo "Kernel: $(uname -a)"
+  echo "OS: $(. /etc/os-release 2>/dev/null; echo ${PRETTY_NAME:-unknown})"
+  echo "==============================================================="
+} > "$OUT"
+
+# Identity / time (helps correlate with tickets)
+{
+  run "whoami"
+  run "id"
+  run "timedatectl 2>/dev/null || true"
+} >> "$OUT"
+
+# Disk / storage topology + mounts
+{
+  run "lsblk -o NAME,MAJ:MIN,SIZE,ROTA,TYPE,FSTYPE,MOUNTPOINT,MODEL"
+  run "lsblk -f"
+  run "lsblk -t"
+  run "blkid 2>/dev/null || true"
+  run "df -hT"
+  run "df -i"
+  run "mount"
+  run "findmnt -o TARGET,SOURCE,FSTYPE,OPTIONS"
+  run "cat /etc/fstab 2>/dev/null || true"
+} >> "$OUT"
+
+# Kernel / driver / virtualization hints
+{
+  run "systemd-detect-virt 2>/dev/null || true"
+  run "lscpu | sed -n '1,120p'"
+  run "lsmod | grep -iE 'virtio|scsi|nvme|blk' || true"
+  run "dmesg -T | grep -iE 'virtio|scsi|nvme|blk' | tail -200 || true"
+} >> "$OUT"
+
+# Queue / scheduler parameters (important for I/O behavior)
+{
+  run "echo '--- /sys/block/*/queue/scheduler ---'; for f in /sys/block/*/queue/scheduler; do echo \"$f: $(cat \"$f\")\"; done"
+  run "echo '--- /sys/block/*/queue/nr_requests ---'; for f in /sys/block/*/queue/nr_requests; do echo \"$f: $(cat \"$f\")\"; done"
+  run "echo '--- /sys/block/*/queue/read_ahead_kb ---'; for f in /sys/block/*/queue/read_ahead_kb; do echo \"$f: $(cat \"$f\")\"; done"
+  run "echo '--- /sys/block/*/queue/max_sectors_kb ---'; for f in /sys/block/*/queue/max_sectors_kb; do echo \"$f: $(cat \"$f\")\"; done"
+  run "echo '--- /sys/block/*/queue/queue_depth (if present) ---'; for f in /sys/block/*/queue/queue_depth; do echo \"$f: $(cat \"$f\" 2>/dev/null || true)\"; done"
+  run "echo '--- /sys/block/*/queue/rotational ---'; for f in /sys/block/*/queue/rotational; do echo \"$f: $(cat \"$f\")\"; done"
+} >> "$OUT"
+
+# I/O-related warnings from kernel logs (high signal)
+{
+  run "dmesg -T | grep -iE 'I/O error|timeout|reset|hung task|blocked for more than|Buffer I/O|EXT4-fs error|xfs error|nvme.*reset|blk_update_request' || true"
+  run "journalctl -k --no-pager -n 400 2>/dev/null || true"
+} >> "$OUT"
+
+# Quick live I/O snapshot (non-intrusive)
+{
+  run "command -v iostat >/dev/null && iostat -xz 1 10 || echo 'iostat not installed'"
+  run "vmstat 1 10"
+  run "command -v pidstat >/dev/null && pidstat -d 1 5 || echo 'pidstat not installed'"
+} >> "$OUT"
+
+# Useful sysctls that affect I/O / VM behavior (read-only)
+{
+  run "sysctl vm.dirty_background_ratio vm.dirty_ratio vm.dirty_expire_centisecs vm.dirty_writeback_centisecs 2>/dev/null || true"
+  run "sysctl fs.file-max fs.inotify.max_user_watches 2>/dev/null || true"
+} >> "$OUT"
+
+echo "Wrote: $OUT"
+EOF
+
+chmod +x /tmp/node_disk_snapshot.sh
+
+###
+
+sudo /tmp/node_disk_snapshot.sh /tmp
