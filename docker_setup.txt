@@ -2086,3 +2086,46 @@ chmod +x /tmp/node_disk_snapshot.sh
 ###
 
 sudo /tmp/node_disk_snapshot.sh /tmp
+
+###
+
+Hi **[Unix Name]**, hi **[OpenStack Name]**,
+
+Following on from the tickets below, I wanted to loop you both together as this issue now clearly spans OS and OpenStack.
+
+* Unix / OS ticket: **[TICKET-ID-UNIX]** (currently with vendor)
+* OpenStack ticket: **[TICKET-ID-OPENSTACK]**
+
+**Summary**
+We’re seeing **intermittent VM-level unresponsiveness** on a subset of Spark worker nodes. When it occurs, the VM becomes unreachable (SSH dead, Dynatrace agent stops reporting) while the rest of the cluster continues to operate. A reboot restores the node.
+
+**Impact / scope**
+
+* Since Friday, **9 worker hosts** have been affected
+* Issue is **isolated to newly provisioned workers**
+* Workers provisioned earlier remain stable under similar workloads
+* A Dev cluster on the **same Spark version and Ubuntu 22.04**, under **comparable workload patterns**, does **not** show this behaviour
+
+**Current status**
+
+* Cluster is coping with current workloads with reduced worker count
+* Affected nodes were rebooted over the weekend, but Spark services are **being kept stopped** pending clarity on root cause
+
+**Observations**
+
+* Workers join the cluster and run jobs normally before failure
+* Failures are host-specific and non-deterministic
+* Dynatrace often shows **elevated CPU iowait** prior to loss of visibility
+* No clear guest-level CPU, memory, or disk exhaustion
+* Issue persists after live migration
+* This points to an **infra-level issue rather than Spark itself**
+
+**Next steps**
+
+* From OpenStack: storage backend / volume type comparison for affected vs stable workers, and any hypervisor-side events during failure windows
+* From Unix: any insight from the vendor on Ubuntu 22.04 kernel / virtio / audit behaviour under heavy I/O, plus an idea of timeline if possible
+
+Happy to share Dynatrace charts, timestamps, and host lists to help correlate.
+
+Thanks,
+Matt
