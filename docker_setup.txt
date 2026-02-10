@@ -2089,43 +2089,86 @@ sudo /tmp/node_disk_snapshot.sh /tmp
 
 ###
 
-Hi **[Unix Name]**, hi **[OpenStack Name]**,
+- name: Upgrade nginx with tagged rollback support
+  hosts: nginx_servers
+  become: true
 
-Following on from the tickets below, I wanted to loop you both together as this issue now clearly spans OS and OpenStack.
+  vars:
+    nginx_new_version: "1.26.2"
+    nginx_old_version: "1.20.1"
+    rhel_major: "8"
+    rpm_dir: "/tmp/nginx-rpms"
 
-* Unix / OS ticket: **[TICKET-ID-UNIX]** (currently with vendor)
-* OpenStack ticket: **[TICKET-ID-OPENSTACK]**
+  tasks:
+    - name: Create temp directory for nginx RPMs
+      tags: [nginx_upgrade, nginx_prep_dir]
+      file:
+        path: "{{ rpm_dir }}"
+        state: directory
+        mode: "0755"
 
-**Summary**
-We’re seeing **intermittent VM-level unresponsiveness** on a subset of Spark worker nodes. When it occurs, the VM becomes unreachable (SSH dead, Dynatrace agent stops reporting) while the rest of the cluster continues to operate. A reboot restores the node.
+    - name: Download nginx-filesystem RPM
+      tags: [nginx_upgrade, nginx_download_filesystem]
+      get_url:
+        url: "https://nginx.org/packages/rhel/{{ rhel_major }}/x86_64/nginx-filesystem-{{ nginx_new_version }}-1.el{{ rhel_major }}.ngx.noarch.rpm"
+        dest: "{{ rpm_dir }}/"
+        mode: "0644"
 
-**Impact / scope**
+    - name: Download nginx RPM
+      tags: [nginx_upgrade, nginx_download_binary]
+      get_url:
+        url: "https://nginx.org/packages/rhel/{{ rhel_major }}/x86_64/nginx-{{ nginx_new_version }}-1.el{{ rhel_major }}.ngx.x86_64.rpm"
+        dest: "{{ rpm_dir }}/"
+        mode: "0644"
 
-* Since Friday, **9 worker hosts** have been affected
-* Issue is **isolated to newly provisioned workers**
-* Workers provisioned earlier remain stable under similar workloads
-* A Dev cluster on the **same Spark version and Ubuntu 22.04**, under **comparable workload patterns**, does **not** show this behaviour
+    - name: Disable RHEL nginx module (RHEL 8/9 only)
+      tags: [nginx_upgrade, nginx_disable_module]
+      command: dnf -y module disable nginx
+      when: ansible_distribution_major_version | int >= 8
+      changed_when: false
 
-**Current status**
+    - block:
 
-* Cluster is coping with current workloads with reduced worker count
-* Affected nodes were rebooted over the weekend, but Spark services are **being kept stopped** pending clarity on root cause
+        - name: Upgrade nginx in place
+          tags: [nginx_upgrade, nginx_install]
+          dnf:
+            name:
+              - "{{ rpm_dir }}/nginx-filesystem-*.rpm"
+              - "{{ rpm_dir }}/nginx-*.rpm"
+            state: present
+            disable_gpg_check: true
 
-**Observations**
+        - name: Validate nginx configuration
+          tags: [nginx_upgrade, nginx_validate]
+          command: nginx -t
+          changed_when: false
 
-* Workers join the cluster and run jobs normally before failure
-* Failures are host-specific and non-deterministic
-* Dynatrace often shows **elevated CPU iowait** prior to loss of visibility
-* No clear guest-level CPU, memory, or disk exhaustion
-* Issue persists after live migration
-* This points to an **infra-level issue rather than Spark itself**
+        - name: Restart nginx
+          tags: [nginx_upgrade, nginx_restart]
+          service:
+            name: nginx
+            state: restarted
+            enabled: true
 
-**Next steps**
+      rescue:
 
-* From OpenStack: storage backend / volume type comparison for affected vs stable workers, and any hypervisor-side events during failure windows
-* From Unix: any insight from the vendor on Ubuntu 22.04 kernel / virtio / audit behaviour under heavy I/O, plus an idea of timeline if possible
+        - name: Roll back nginx to previous version
+          tags: [nginx_rollback, nginx_rollback_install]
+          dnf:
+            name: "nginx-{{ nginx_old_version }}*"
+            state: present
+            allow_downgrade: true
 
-Happy to share Dynatrace charts, timestamps, and host lists to help correlate.
+        - name: Restart nginx after rollback
+          tags: [nginx_rollback, nginx_rollback_restart]
+          service:
+            name: nginx
+            state: restarted
 
-Thanks,
-Matt
+        - name: Fail play after rollback
+          tags: [nginx_rollback, nginx_rollback_fail]
+          fail:
+            msg: >
+              NGINX upgrade failed.
+              Rolled back to version {{ nginx_old_version }}.
+              Check nginx config and logs.
