@@ -2172,3 +2172,17 @@ sudo /tmp/node_disk_snapshot.sh /tmp
               NGINX upgrade failed.
               Rolled back to version {{ nginx_old_version }}.
               Check nginx config and logs.
+
+###
+
+from py4j.java_gateway import java_import
+
+jvm = spark.sparkContext._jvm
+Path = jvm.org.apache.hadoop.fs.Path
+
+p = Path("s3a://buck/test")
+u = p.toUri()
+
+print("URI:", u.toString())
+print("host:", u.getHost())
+print("path:", u.getPath())
