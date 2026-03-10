@@ -2190,3 +2190,29 @@ print("path:", u.getPath())
 ###
 
 Spark accesses S3 via Hadoop’s S3A connector, which parses paths like s3a://bucket/key by treating the bucket name as the URI host. The target ECS bucket contains underscores, and Hadoop’s URI parser doesn’t accept underscores as a valid host, so the bucket isn’t recognised during parsing. As a result S3A receives a null/empty bucket and fails with IllegalArgumentException: bucket is null/empty. Tools like AWS CLI work because they don’t rely on Hadoop URI parsing. The practical fix is to mirror or expose the data in a bucket with a compliant name (lowercase, no underscores) for Spark to read.
+
+###
+
+Hi,
+
+I’ve reviewed the nginx setup on the affected environment.
+
+Nginx binary version and build flags match between Dev and Staging.
+
+Main nginx config and site proxy config are aligned.
+
+Nginx system service and system-level setup are consistent.
+
+The system nginx layer therefore appears aligned across environments.
+
+One difference observed is the nginx config under the DSS install directory:
+
+/data/dataiku/dss_data/install-support/nginx.conf
+
+This differs between Dev and Staging and is likely related to the recent DSS upgrade.
+
+It may be worth restarting the Dataiku service to ensure everything is fully reloaded following the nginx rollback/upgrade.
+
+If the issue persists, it may also be worth considering rolling back the DSS version since nginx has already been rolled back.
+
+Thanks.
