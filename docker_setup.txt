@@ -2196,3 +2196,10 @@ Spark accesses S3 via Hadoop’s S3A connector, which parses paths like s3a://bu
 find /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots -path "*/apps/java/*" 2>/dev/null
 
 find /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots -name rt.jar 2>/dev/null | grep jre1.8
+
+###
+
+findmnt | grep '/snapshots/7445'
+cat /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445/kind 2>/dev/null
+cat /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445/parent 2>/dev/null
+test -f /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445/committed && echo committed
