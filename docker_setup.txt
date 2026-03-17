@@ -2203,3 +2203,7 @@ findmnt | grep '/snapshots/7445'
 cat /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445/kind 2>/dev/null
 cat /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445/parent 2>/dev/null
 test -f /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445/committed && echo committed
+
+lsof +D /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445
+
+rm -rf /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445
