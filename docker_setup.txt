@@ -2206,4 +2206,6 @@ test -f /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445/c
 
 lsof +D /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445
 
+sudo tar -czf /tmp/snapshot-7445-backup.tar.gz -C /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots 7445
+
 rm -rf /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445
