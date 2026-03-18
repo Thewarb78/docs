@@ -2209,3 +2209,13 @@ lsof +D /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445
 sudo tar -czf /var/tmp/snapshot-7445-backup.tar.gz -C /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots 7445
 
 rm -rf /data/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/7445
+
+SELECT 
+    @@SERVERNAME AS server_name,
+    DB_NAME() AS database_name,
+    s.name AS schema_name,
+    dp.name AS owner
+FROM sys.schemas s
+JOIN sys.database_principals dp 
+    ON s.principal_id = dp.principal_id
+WHERE s.name = 'blah';
