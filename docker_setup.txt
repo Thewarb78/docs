@@ -2222,10 +2222,11 @@ WHERE s.name = 'blah';
 
 ###
 
-USE [dbbane];
+USE [dbname];
 GO
 
 SELECT 
+    @@SERVERNAME AS server_name,
     s.name AS schema_name,
     dp.name AS owner
 FROM sys.schemas s
