@@ -2234,3 +2234,48 @@ JOIN sys.database_principals dp
     ON s.principal_id = dp.principal_id
 WHERE s.name = 'shema';
 GO
+
+###
+
+server {
+    listen 443 ssl;
+    server_name temp;
+
+    ssl_certificate     /etc/ssl/certs/temp.crt;
+    ssl_certificate_key /etc/ssl/private/temp.key;
+
+    # mTLS config
+    ssl_client_certificate /apps/bundle.pem;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+
+    client_max_body_size 1G;
+
+    location / {
+
+        # Enforce exact subject match
+        if ($ssl_client_s_dn != "CN=temp") {
+            return 403;
+        }
+
+        include proxy_params;
+        proxy_pass http://127.0.0.1:8001;
+        proxy_http_version 1.1;
+
+        proxy_set_header Connection "";
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # Optional: useful for debugging / audit
+        proxy_set_header X-SSL-Client-Verify  $ssl_client_verify;
+        proxy_set_header X-SSL-Client-Subject $ssl_client_s_dn;
+        proxy_set_header X-SSL-Client-Issuer  $ssl_client_i_dn;
+
+        proxy_connect_timeout 300s;
+        proxy_send_timeout    300s;
+        proxy_read_timeout    300s;
+        send_timeout          300s;
+
+        proxy_request_buffering off;
+        proxy_buffering off;
+    }
+}
