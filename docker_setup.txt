@@ -2284,16 +2284,3 @@ server {
         add_header X-Client-Subject $ssl_client_s_dn always;
         return 200 "ok\n";
 
-I can see Microsoft-IIS/10.0 in the Server response header. This can be suppressed in IIS by adding the following to the web.config:
-
-<security>
-    <requestFiltering removeServerHeader="true" />
-</security>
-
-Once suppressed in IIS, the Server header will show Apache, which is coming from the SSO reverse proxy in front of IIS.
-
-On our side, we don’t typically modify the Apache configuration beyond standard reverse proxy rules. The platform is generally configured to suppress version details (i.e. it shows Apache rather than a full version string), and removing the header entirely is not always a simple configuration change.
-
-Also worth noting this behaviour is inherent to the SSO product itself, so it wouldn’t be specific to our application.
-
-If full removal of the Server header is required, this would need to be reviewed with the SSO proxy owners / product maintainers.
