@@ -2279,3 +2279,7 @@ server {
         proxy_buffering off;
     }
 }
+
+        add_header X-Client-Verify  $ssl_client_verify always;
+        add_header X-Client-Subject $ssl_client_s_dn always;
+        return 200 "ok\n";
