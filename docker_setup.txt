@@ -2284,3 +2284,21 @@ server {
         add_header X-Client-Subject $ssl_client_s_dn always;
         return 200 "ok\n";
 
+from fastmcp import FastMCP
+
+mcp = FastMCP()
+
+@mcp.tool()
+def hello() -> str:
+    return "hello world"
+
+def main(port: int = 8000):
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=port,
+        path="/"
+    )
+
+if __name__ == "__main__":
+    main(8000)
