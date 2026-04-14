@@ -2302,3 +2302,40 @@ def main(port: int = 8000):
 
 if __name__ == "__main__":
     main(8000)
+
+###
+
+# =========================
+
+# WinRM + Kerberos Debug Script
+
+# =========================
+
+Write-Host "==== BASIC HOST INFO ====" -ForegroundColor Cyan
+hostname
+Write-Host "Domain:" $env:USERDNSDOMAIN
+Write-Host "FQDN:" ([System.Net.Dns]::GetHostByName($env:COMPUTERNAME).HostName)
+
+Write-Host "`n==== WINRM LISTENERS ====" -ForegroundColor Cyan
+winrm enumerate winrm/config/listener
+
+Write-Host "`n==== WINRM SERVICE CONFIG ====" -ForegroundColor Cyan
+winrm get winrm/config/service
+
+Write-Host "`n==== TEST WSMan (LOCAL) ====" -ForegroundColor Cyan
+Test-WsMan localhost
+
+Write-Host "`n==== TEST WSMan (FQDN) ====" -ForegroundColor Cyan
+$fqdn = ([System.Net.Dns]::GetHostByName($env:COMPUTERNAME).HostName)
+Test-WsMan $fqdn
+
+Write-Host "`n==== SPNs FOR THIS HOST ====" -ForegroundColor Cyan
+setspn -L $env:COMPUTERNAME
+
+Write-Host "`n==== CHECK DUPLICATE SPNs (may take time) ====" -ForegroundColor Cyan
+setspn -X
+
+Write-Host "`n==== SECURE CHANNEL STATUS ====" -ForegroundColor Cyan
+Test-ComputerSecureChannel
+
+Write-Host "`n==== DONE ====" -ForegroundColor Green
