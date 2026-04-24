@@ -2339,3 +2339,112 @@ Write-Host "`n==== SECURE CHANNEL STATUS ====" -ForegroundColor Cyan
 Test-ComputerSecureChannel
 
 Write-Host "`n==== DONE ====" -ForegroundColor Green
+
+#####
+
+🧩 FEATURE 1.1 — Cluster Provisioning (Non-Prod)
+
+Tasks
+ Raise request for non-prod K8s cluster
+ Confirm cluster version (target 1.35)
+ Obtain kubeconfig access
+ Validate kubectl connectivity
+ Create namespace (e.g. spark-dev)
+ Confirm network access to S3 endpoints
+ Confirm DNS resolution inside cluster
+Acceptance Criteria
+kubectl get nodes works
+kubectl get pods -A works
+Namespace exists and usable
+Test pod can reach S3 endpoint
+
+🧩 FEATURE 1.2 — Base PySpark Runtime Image
+
+Tasks
+ Choose base image strategy (official Spark vs custom)
+ Create Dockerfile for base image
+ Install:
+Spark 3.5.3
+Python
+Hadoop/S3 libs
+ Ensure correct Spark directory layout (/opt/spark)
+ Build image locally
+ Push to container registry
+ Validate image runs in K8s pod
+Acceptance Criteria
+Container starts successfully in K8s
+spark-submit --version works inside container
+Python available (python --version)
+Image accessible from cluster
+
+🧩 FEATURE 1.3 — Core Platform Config (core-site.xml)
+
+Tasks
+ Create ConfigMap for core-site.xml
+ Define mount path (e.g. /opt/spark/conf/)
+ Mount ConfigMap into test pod
+ Verify file is present inside container
+ Validate Spark reads config
+Acceptance Criteria
+core-site.xml visible in container
+Spark job can access S3
+No need to rebuild image when config changes
+
+🧩 FEATURE 1.4 — RBAC / ServiceAccount Setup
+
+
+Tasks
+ Create ServiceAccount (e.g. spark)
+ Define Role with permissions:
+pods create/delete/get/list/watch
+ Bind Role to ServiceAccount
+ Test manual pod creation using ServiceAccount
+ Validate permissions via test job
+Acceptance Criteria
+Driver pod starts successfully
+Executor pods are created
+No RBAC errors in logs
+
+🧩 FEATURE 1.5 — Spark Execution Validation
+
+Sub-story 1 — SparkPi
+Tasks
+ Run SparkPi using spark-submit
+ Observe driver pod creation
+ Observe executor pods
+ Check logs
+Acceptance Criteria
+Job completes successfully
+Executors created and terminated cleanly
+Sub-story 2 — PySpark Job
+Tasks
+ Create simple PySpark script
+ Submit job to K8s
+ Validate Python execution
+ Check logs via kubectl
+Acceptance Criteria
+Python code executes
+Output visible in logs
+Sub-story 3 — S3 Integration
+Tasks
+ Modify PySpark job to read/write S3
+ Validate S3 access via core-site.xml
+ Confirm output written to S3
+Acceptance Criteria
+Data successfully read from S3
+Data successfully written to S3
+
+🧩 FEATURE 1.6 — Debugging Baseline
+
+Tasks
+ Practice kubectl get pods
+ Practice kubectl logs
+ Practice kubectl describe pod
+ Simulate failure (bad image / low memory)
+ Capture findings
+Acceptance Criteria
+Can diagnose:
+Pending pods
+Failed containers
+Missing executors
+Basic troubleshooting notes captured
