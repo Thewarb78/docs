@@ -2340,6 +2340,7 @@ Test-ComputerSecureChannel
 
 Write-Host "`n==== DONE ====" -ForegroundColor Green
 
+<<<<<<< HEAD
 #####
 
 🧩 FEATURE 1.1 — Cluster Provisioning (Non-Prod)
@@ -2448,3 +2449,89 @@ Pending pods
 Failed containers
 Missing executors
 Basic troubleshooting notes captured
+=======
+###
+
+# ===== CONFIG =====
+$uri = "https://your-endpoint"   # change this
+
+# ===== HEADERS =====
+$headers = @{
+    "Content-Type" = "application/json"
+    "Accept"       = "application/json, text/event-stream"
+}
+
+# ===== 1. INITIALIZE =====
+$initBody = @{
+    jsonrpc = "2.0"
+    id      = 1
+    method  = "initialize"
+    params  = @{
+        protocolVersion = "2025-03-26"
+        capabilities    = @{}
+        clientInfo      = @{
+            name    = "powershell-test"
+            version = "1.0"
+        }
+    }
+} | ConvertTo-Json -Depth 10
+
+Write-Host "Sending initialize..."
+
+$initResponse = Invoke-WebRequest `
+    -Uri $uri `
+    -Method POST `
+    -Headers $headers `
+    -Body $initBody
+
+# ===== 2. GET SESSION ID =====
+$sessionId = $initResponse.Headers["Mcp-Session-Id"]
+
+if (-not $sessionId) {
+    $sessionId = $initResponse.Headers["mcp-session-id"]
+}
+
+if (-not $sessionId) {
+    Write-Host "❌ No session ID returned"
+    $initResponse.Headers | Format-List
+    exit
+}
+
+Write-Host "✅ Session ID: $sessionId"
+
+# add to headers
+$headers["Mcp-Session-Id"] = $sessionId
+
+# ===== 3. SEND INITIALIZED NOTIFICATION =====
+$notifyBody = @{
+    jsonrpc = "2.0"
+    method  = "notifications/initialized"
+} | ConvertTo-Json -Depth 5
+
+Write-Host "Sending initialized notification..."
+
+Invoke-WebRequest `
+    -Uri $uri `
+    -Method POST `
+    -Headers $headers `
+    -Body $notifyBody | Out-Null
+
+# ===== 4. TOOLS LIST =====
+$toolsBody = @{
+    jsonrpc = "2.0"
+    id      = 2
+    method  = "tools/list"
+} | ConvertTo-Json -Depth 5
+
+Write-Host "Requesting tools/list..."
+
+$toolsResponse = Invoke-WebRequest `
+    -Uri $uri `
+    -Method POST `
+    -Headers $headers `
+    -Body $toolsBody
+
+# ===== OUTPUT =====
+Write-Host "`n=== RESPONSE ==="
+$toolsResponse.Content
+>>>>>>> b487e529cb1940b1e4e367fbf41da324d788e677
