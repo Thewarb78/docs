@@ -2563,3 +2563,20 @@ metadata:
 type: kubernetes.io/dockerconfigjson
 data:
   .dockerconfigjson: <PASTE_YOUR_BASE64_VALUE_HERE>
+
+####
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-python
+  namespace: yournamespace
+spec:
+  restartPolicy: Never
+  imagePullSecrets:
+    - name: secretname
+  containers:
+    - name: python
+      image: imagepath
+      command: ["sleep"]
+      args: ["3600"]
