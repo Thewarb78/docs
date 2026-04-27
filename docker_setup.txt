@@ -2580,3 +2580,36 @@ spec:
       image: imagepath
       command: ["sleep"]
       args: ["3600"]
+
+###
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-python
+  namespace: namespace
+spec:
+  restartPolicy: Never
+  imagePullSecrets:
+    - name: secret
+  containers:
+    - name: python
+      image: 
+      command: ["sleep"]
+      args: ["3600"]
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
