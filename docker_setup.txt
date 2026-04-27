@@ -2535,3 +2535,31 @@ $toolsResponse = Invoke-WebRequest `
 Write-Host "`n=== RESPONSE ==="
 $toolsResponse.Content
 >>>>>>> b487e529cb1940b1e4e367fbf41da324d788e677
+
+####
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: 
+  namespace: 
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: |
+    {
+      "auths": {
+        "your-artifactory-url": {
+          "username": "xxx",
+          "password": "yyy",
+        }
+      }
+    }
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: 
+  namespace: 
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: <PASTE_YOUR_BASE64_VALUE_HERE>
