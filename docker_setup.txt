@@ -2613,3 +2613,44 @@ spec:
   volumes:
     - name: tmp
       emptyDir: {}
+
+###
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-python
+  namespace: 
+spec:
+  restartPolicy: Never
+  imagePullSecrets:
+    - name: 
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containers:
+    - name: python
+      image: 
+      command: ["sleep"]
+      args: ["3600"]
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
