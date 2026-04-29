@@ -2658,3 +2658,14 @@ spec:
       ###
 
 openssl s_client -starttls smtp -connect :25 2>/dev/null | grep -E "Verify return code|Protocol|Cipher"
+
+##
+
+sudo nano /etc/apt/apt.conf.d/95proxy
+
+Acquire::http::Proxy "http://user:password@proxy:port";
+Acquire::https::Proxy "http://user:password@proxy:port";
+
+// Don’t use proxy for internal repos
+Acquire::http::Proxy::ignore "DIRECT";
+Acquire::https::Proxy::ignore "DIRECT";
