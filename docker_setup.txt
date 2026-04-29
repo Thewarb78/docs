@@ -2683,3 +2683,53 @@ Environment="NO_PROXY=localhost,127.0.0.1,.domain,10.0.0.0/8"
 
 sudo systemctl daemon-reload
 sudo systemctl restart docker
+
+####
+
+FROM image
+
+USER root
+
+# Install ONLY build deps needed for compiling Python later
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        ca-certificates \
+        openssl \
+        libssl-dev \
+        libbz2-dev \
+        libffi-dev \
+        zlib1g-dev \
+        libsqlite3-dev \
+        liblzma-dev \
+        libncursesw5-dev \
+        tk-dev \
+        libgdbm-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for K8s
+RUN groupadd -g 1000 spark || true && \
+    useradd -u 1000 -g 1000 -m -s /bin/bash spark || true
+
+# Prepare writable locations (important for readOnlyRootFilesystem later)
+RUN mkdir -p /opt/spark /opt/app /tmp/spark-work && \
+    chown -R 1000:1000 /opt/spark /opt/app /tmp/spark-work
+
+USER 1000:1000
+
+WORKDIR /opt/app
+
+CMD ["bash"]
+
+####
+
+docker build -t base-apt:0.1 .
+docker run --rm -it base-apt:0.1
+
+####
+
+whoami
+id
+java -version
+openssl version
