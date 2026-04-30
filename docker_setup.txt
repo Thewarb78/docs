@@ -2756,3 +2756,6 @@ cp /usr/share/keyrings/*.gpg /tmp/
 
 COPY apt/*.gpg /etc/apt/trusted.gpg.d/
 COPY apt/*.gpg /usr/share/keyrings/
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Paris
