@@ -2733,3 +2733,10 @@ whoami
 id
 java -version
 openssl version
+
+####
+
+for f in /etc/apt/trusted.gpg.d/*.gpg; do
+  echo "Checking $f"
+  gpg --show-keys --with-fingerprint $f | grep -i thekeyid && echo "^^^ FOUND IN $f"
+done
