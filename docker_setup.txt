@@ -2759,3 +2759,14 @@ COPY apt/*.gpg /usr/share/keyrings/
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Paris
+
+##
+
+# syntax=docker/dockerfile:1.6
+
+RUN --mount=type=secret,id=arti_auth \
+    ART_AUTH="$(cat /run/secrets/arti_auth)" && \
+    curl -fSL \
+      -H "Authorization: Basic ${ART_AUTH}" \
+      "https://<artifactory-url>/Python-3.11.10.tgz" \
+      -o /tmp/Python-3.11.10.tgz
