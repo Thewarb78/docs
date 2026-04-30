@@ -2810,3 +2810,21 @@ sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin -y
 mkdir -p ~/.docker/cli-plugins
 ln -sf /usr/libexec/docker/cli-plugins/docker-buildx ~/.docker/cli-plugins/docker-buildx
 chmod +x ~/.docker/cli-plugins/docker-buildx
+
+####
+
+# syntax=docker/dockerfile:1.6
+
+ARG PYTHON_VERSION=3.11.10
+ARG ARTIFACTORY_URL
+ARG PYTHON_PARENT_DIR=/opt
+
+RUN --mount=type=secret,id=artifactory_auth \
+    AUTH="$(cat /run/secrets/artifactory_auth)" && \
+    curl -fSL \
+      -H "Authorization: Basic ${AUTH}" \
+      "${ARTIFACTORY_URL}/python/Python-${PYTHON_VERSION}.tgz" \
+      -o "/tmp/Python-${PYTHON_VERSION}.tgz" && \
+    mkdir -p "${PYTHON_PARENT_DIR}" && \
+    tar -xzf "/tmp/Python-${PYTHON_VERSION}.tgz" -C "${PYTHON_PARENT_DIR}" && \
+    rm "/tmp/Python-${PYTHON_VERSION}.tgz"
