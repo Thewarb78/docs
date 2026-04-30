@@ -2774,3 +2774,13 @@ RUN --mount=type=secret,id=arti_auth \
 ###
 
 DOCKER_BUILDKIT=1 docker build --build-arg PYTHON_VERSION=3.11.10 --build-arg ARTIFACTORY_URL=https://arti.company.com/repo --secret id=artifactory_auth,src=.artifactory_auth -t spark-base-python:0.1 .
+
+###
+
+mkdir -p ~/.docker/cli-plugins
+
+curl -L https://github.com/docker/buildx/releases/latest/download/buildx-linux-amd64 \
+  -o ~/.docker/cli-plugins/docker-buildx
+
+chmod +x ~/.docker/cli-plugins/docker-buildx
+
