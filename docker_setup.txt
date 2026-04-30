@@ -2770,3 +2770,7 @@ RUN --mount=type=secret,id=arti_auth \
       -H "Authorization: Basic ${ART_AUTH}" \
       "https://<artifactory-url>/Python-3.11.10.tgz" \
       -o /tmp/Python-3.11.10.tgz
+
+###
+
+DOCKER_BUILDKIT=1 docker build --build-arg PYTHON_VERSION=3.11.10 --build-arg ARTIFACTORY_URL=https://arti.company.com/repo --secret id=artifactory_auth,src=.artifactory_auth -t spark-base-python:0.1 .
