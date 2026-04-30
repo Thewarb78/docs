@@ -1,4 +1,4 @@
-sudo apt update
+justsudo apt update
 sudo apt upgrade -y
 
 sudo apt install -y ca-certificates curl gnupg lsb-release
@@ -2804,3 +2804,9 @@ echo \
 sudo apt update
 
 sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin -y
+
+####
+
+mkdir -p ~/.docker/cli-plugins
+ln -sf /usr/libexec/docker/cli-plugins/docker-buildx ~/.docker/cli-plugins/docker-buildx
+chmod +x ~/.docker/cli-plugins/docker-buildx
