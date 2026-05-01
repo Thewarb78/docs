@@ -29,3 +29,13 @@ ARG PYTHON_MAJOR_VERSION=3.11
 COPY requirements/py${PYTHON_MAJOR_VERSION}.txt /tmp/requirements.txt
 
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+###
+
+RUN --mount=type=secret,id=arti_pip_auth \
+    ARTI_AUTH=$(cat /run/secrets/arti_pip_auth) && \
+    pip install --no-cache-dir \
+      --timeout 100 \
+      --index-url "https://${ARTI_AUTH}@redacted/artifactory/api/pypi/pypi-remote/simple" \
+      --trusted-host redacted \
+      -r /tmp/requirements.txt
