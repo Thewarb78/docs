@@ -2881,3 +2881,24 @@ RUN --mount=type=secret,id=artifactory_auth \
     done && \
     chown -R 1000:1000 "${SPARK_HOME}/jars" && \
     chmod 0644 "${SPARK_HOME}"/jars/*.jar
+
+##
+
+ARG SPARK_VERSION=3.5.3
+ARG SPARK_ARCHIVE=spark-${SPARK_VERSION}-bin-hadoop3.tgz
+ARG SPARK_PARENT_DIR=/apps
+ARG SPARK_HOME=/apps/spark
+ARG ARTIFACTORY_URL
+ARG SPARK_ARTIFACT_PATH=spark
+
+RUN --mount=type=secret,id=artifactory_auth \
+    AUTH="$(cat /run/secrets/artifactory_auth)" && \
+    curl -fSL \
+      -H "Authorization: Basic ${AUTH}" \
+      "${ARTIFACTORY_URL}/${SPARK_ARTIFACT_PATH}/${SPARK_ARCHIVE}" \
+      -o "/tmp/${SPARK_ARCHIVE}" && \
+    mkdir -p "${SPARK_PARENT_DIR}" && \
+    tar -xzf "/tmp/${SPARK_ARCHIVE}" -C "${SPARK_PARENT_DIR}" && \
+    ln -sfn "${SPARK_PARENT_DIR}/spark-${SPARK_VERSION}-bin-hadoop3" "${SPARK_HOME}" && \
+    rm "/tmp/${SPARK_ARCHIVE}" && \
+    chown -R 1000:1000 "${SPARK_PARENT_DIR}"
