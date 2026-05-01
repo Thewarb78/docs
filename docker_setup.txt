@@ -82,3 +82,6 @@ PY
 ls -ld /apps
 ls -ld $SPARK_HOME
 ls -ld /data/spark/work
+
+
+ENV PYTHONPATH="${SPARK_HOME}/python:${SPARK_HOME}/python/lib/py4j-*.zip"
