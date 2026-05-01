@@ -85,3 +85,12 @@ ls -ld /data/spark/work
 
 
 ENV PYTHONPATH="${SPARK_HOME}/python:${SPARK_HOME}/python/lib/py4j-*.zip"
+
+##
+
+ENV SPARK_HOME=/apps/spark
+ENV PATH="${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}"
+ENV PYSPARK_PYTHON=/usr/local/bin/python
+ENV PYSPARK_DRIVER_PYTHON=/usr/local/bin/python
+
+ENV PYTHONPATH="${SPARK_HOME}/python:${SPARK_HOME}/python/lib/py4j-0.10.9.7-src.zip"
