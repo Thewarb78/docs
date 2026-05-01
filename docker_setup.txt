@@ -2828,3 +2828,18 @@ RUN --mount=type=secret,id=artifactory_auth \
     mkdir -p "${PYTHON_PARENT_DIR}" && \
     tar -xzf "/tmp/Python-${PYTHON_VERSION}.tgz" -C "${PYTHON_PARENT_DIR}" && \
     rm "/tmp/Python-${PYTHON_VERSION}.tgz"
+
+###
+
+ARG PYTHON_VERSION=3.11.10
+ARG PYTHON_MAJOR_VERSION=3.11
+ARG PYTHON_PARENT_DIR=/opt
+
+RUN cd "${PYTHON_PARENT_DIR}/Python-${PYTHON_VERSION}" && \
+    ./configure --enable-optimizations --with-ensurepip=install && \
+    make -j"$(nproc)" && \
+    make altinstall && \
+    ln -sf "/usr/local/bin/python${PYTHON_MAJOR_VERSION}" /usr/local/bin/python && \
+    ln -sf "/usr/local/bin/python${PYTHON_MAJOR_VERSION}" /usr/local/bin/python3 && \
+    ln -sf "/usr/local/bin/pip${PYTHON_MAJOR_VERSION}" /usr/local/bin/pip && \
+    ln -sf "/usr/local/bin/pip${PYTHON_MAJOR_VERSION}" /usr/local/bin/pip3
