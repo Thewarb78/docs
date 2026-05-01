@@ -1,4 +1,4 @@
-ARG SPARK_VERSION=3.5.3
+kiARG SPARK_VERSION=3.5.3
 ARG SPARK_PARENT_DIR=/apps
 ARG SPARK_TARGET_DIR=/apps/spark-${SPARK_VERSION}-bin-hadoop3
 ARG SPARK_HOME=/apps/spark
@@ -49,3 +49,36 @@ RUN --mount=type=secret,id=arti_pip_auth \
       --index-url "https://${ARTI_AUTH}@redacted/artifactory/api/pypi/pypi-remote/simple" \
       --trusted-host redacted \
       -r /tmp/requirements.txt
+
+###
+
+whoami
+id
+java -version
+python --version
+pip --version
+spark-submit --version
+
+echo $SPARK_HOME
+echo $PATH
+
+ls $SPARK_HOME/jars | grep -E 'hadoop-aws|aws-java-sdk'
+
+touch /data/spark/work/test && rm /data/spark/work/test
+touch /tmp/test && rm /tmp/test
+
+spark-submit \
+  --master local[2] \
+  --class org.apache.spark.examples.SparkPi \
+  $SPARK_HOME/examples/jars/spark-examples_*.jar 10
+
+python - <<'PY'
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.master("local[2]").appName("test").getOrCreate()
+print(spark.range(10).count())
+spark.stop()
+PY
+
+ls -ld /apps
+ls -ld $SPARK_HOME
+ls -ld /data/spark/work
