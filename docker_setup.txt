@@ -8,3 +8,16 @@ RUN ln -sfn "${SPARK_TARGET_DIR}" "${SPARK_HOME}" && \
 
 ENV SPARK_HOME=/apps/spark
 ENV PATH="${SPARK_HOME}/bin:${PATH}"
+
+##
+
+export PYSPARK_PYTHON=/usr/local/bin/python
+export SPARK_LOCAL_DIRS=/tmp/spark-work
+
+COPY spark-env.sh "${SPARK_HOME}/conf/spark-env.sh"
+
+RUN chmod 0744 "${SPARK_HOME}/conf/spark-env.sh" && \
+    chown 1000:1000 "${SPARK_HOME}/conf/spark-env.sh"
+
+RUN mkdir -p /tmp/spark-work && \
+    chown -R 1000:1000 /tmp/spark-work
