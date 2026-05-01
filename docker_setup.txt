@@ -2850,3 +2850,34 @@ ENV SPARK_HOME=/apps/spark \
     PY_ECOSYSTEM= \
     PY_ENVIRON=dev \
     PYSPARK_PYTHON=python
+
+###
+
+ARG SPARK_HOME=/apps/spark
+ARG SPARK_LIB_SOURCE_URL
+ARG AWS_JAVA_VERSION=1.12.252
+ARG AWS_HADOOP_VERSION=3.3.4
+ARG SPARK_VERSION=3.5.3
+
+RUN --mount=type=secret,id=artifactory_auth \
+    AUTH="$(cat /run/secrets/artifactory_auth)" && \
+    mkdir -p "${SPARK_HOME}/jars" && \
+    for jar in \
+      "aws-java-sdk-bundle-${AWS_JAVA_VERSION}.jar" \
+      "bson-4.2.0.jar" \
+      "hadoop-aws-${AWS_HADOOP_VERSION}.jar" \
+      "mongo-spark-connector_2.12-3.0.0.jar" \
+      "mongodb-driver-3.9.1.jar" \
+      "mongodb-driver-core-4.2.0.jar" \
+      "spark-avro_2.12-${SPARK_VERSION}.jar" \
+      "mssql-jdbc-8.4.1.jre8.jar" \
+      "ojdbc8.jar" \
+      "neo4j-connector-apache-spark_2.12-4.1.2_for_spark_3.jar" ; \
+    do \
+      curl -fSL \
+        -H "Authorization: Basic ${AUTH}" \
+        "${SPARK_LIB_SOURCE_URL}/${jar}" \
+        -o "${SPARK_HOME}/jars/${jar}" ; \
+    done && \
+    chown -R 1000:1000 "${SPARK_HOME}/jars" && \
+    chmod 0644 "${SPARK_HOME}"/jars/*.jar
