@@ -21,3 +21,11 @@ RUN chmod 0744 "${SPARK_HOME}/conf/spark-env.sh" && \
 
 RUN mkdir -p /tmp/spark-work && \
     chown -R 1000:1000 /tmp/spark-work
+
+###
+
+ARG PYTHON_MAJOR_VERSION=3.11
+
+COPY requirements/py${PYTHON_MAJOR_VERSION}.txt /tmp/requirements.txt
+
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
