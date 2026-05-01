@@ -39,3 +39,13 @@ RUN --mount=type=secret,id=arti_pip_auth \
       --index-url "https://${ARTI_AUTH}@redacted/artifactory/api/pypi/pypi-remote/simple" \
       --trusted-host redacted \
       -r /tmp/requirements.txt
+
+####
+
+RUN --mount=type=secret,id=arti_pip_auth \
+    ARTI_AUTH=$(cat /run/secrets/arti_pip_auth | base64 -d) && \
+    pip install --no-cache-dir \
+      --timeout 100 \
+      --index-url "https://${ARTI_AUTH}@redacted/artifactory/api/pypi/pypi-remote/simple" \
+      --trusted-host redacted \
+      -r /tmp/requirements.txt
