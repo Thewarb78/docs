@@ -1,4 +1,4 @@
-justsudo apt update
+I'll bejustsudo apt update
 sudo apt upgrade -y
 
 sudo apt install -y ca-certificates curl gnupg lsb-release
@@ -2843,3 +2843,10 @@ RUN cd "${PYTHON_PARENT_DIR}/Python-${PYTHON_VERSION}" && \
     ln -sf "/usr/local/bin/python${PYTHON_MAJOR_VERSION}" /usr/local/bin/python3 && \
     ln -sf "/usr/local/bin/pip${PYTHON_MAJOR_VERSION}" /usr/local/bin/pip && \
     ln -sf "/usr/local/bin/pip${PYTHON_MAJOR_VERSION}" /usr/local/bin/pip3
+
+####
+
+ENV SPARK_HOME=/apps/spark \
+    PY_ECOSYSTEM= \
+    PY_ENVIRON=dev \
+    PYSPARK_PYTHON=python
