@@ -1,96 +1,34 @@
-kiARG SPARK_VERSION=3.5.3
-ARG SPARK_PARENT_DIR=/apps
-ARG SPARK_TARGET_DIR=/apps/spark-${SPARK_VERSION}-bin-hadoop3
-ARG SPARK_HOME=/apps/spark
+apiVersion: v1
+kind: Pod
+metadata:
+  name: image-test
+  namespace: spark   # change if needed
+spec:
+  restartPolicy: Never
 
-RUN ln -sfn "${SPARK_TARGET_DIR}" "${SPARK_HOME}" && \
-    chown -h 1000:1000 "${SPARK_HOME}"
+  imagePullSecrets:
+    - name: 
 
-ENV SPARK_HOME=/apps/spark
-ENV PATH="${SPARK_HOME}/bin:${PATH}"
+  containers:
+    - name: spark
+      image: 
+      imagePullPolicy: Always
 
-##
+      command: ["sleep"]
+      args: ["3600"]
 
-export PYSPARK_PYTHON=/usr/local/bin/python
-export SPARK_LOCAL_DIRS=/tmp/spark-work
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "500m"
+        limits:
+          memory: "2Gi"
+          cpu: "1"
 
-COPY spark-env.sh "${SPARK_HOME}/conf/spark-env.sh"
+      volumeMounts:
+        - name: spark-work
+          mountPath: /data/spark/work
 
-RUN chmod 0744 "${SPARK_HOME}/conf/spark-env.sh" && \
-    chown 1000:1000 "${SPARK_HOME}/conf/spark-env.sh"
-
-RUN mkdir -p /tmp/spark-work && \
-    chown -R 1000:1000 /tmp/spark-work
-
-###
-
-ARG PYTHON_MAJOR_VERSION=3.11
-
-COPY requirements/py${PYTHON_MAJOR_VERSION}.txt /tmp/requirements.txt
-
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
-
-###
-
-RUN --mount=type=secret,id=arti_pip_auth \
-    ARTI_AUTH=$(cat /run/secrets/arti_pip_auth) && \
-    pip install --no-cache-dir \
-      --timeout 100 \
-      --index-url "https://${ARTI_AUTH}@redacted/artifactory/api/pypi/pypi-remote/simple" \
-      --trusted-host redacted \
-      -r /tmp/requirements.txt
-
-####
-
-RUN --mount=type=secret,id=arti_pip_auth \
-    ARTI_AUTH=$(cat /run/secrets/arti_pip_auth | base64 -d) && \
-    pip install --no-cache-dir \
-      --timeout 100 \
-      --index-url "https://${ARTI_AUTH}@redacted/artifactory/api/pypi/pypi-remote/simple" \
-      --trusted-host redacted \
-      -r /tmp/requirements.txt
-
-###
-
-whoami
-id
-java -version
-python --version
-pip --version
-spark-submit --version
-
-echo $SPARK_HOME
-echo $PATH
-
-ls $SPARK_HOME/jars | grep -E 'hadoop-aws|aws-java-sdk'
-
-touch /data/spark/work/test && rm /data/spark/work/test
-touch /tmp/test && rm /tmp/test
-
-spark-submit \
-  --master local[2] \
-  --class org.apache.spark.examples.SparkPi \
-  $SPARK_HOME/examples/jars/spark-examples_*.jar 10
-
-python - <<'PY'
-from pyspark.sql import SparkSession
-spark = SparkSession.builder.master("local[2]").appName("test").getOrCreate()
-print(spark.range(10).count())
-spark.stop()
-PY
-
-ls -ld /apps
-ls -ld $SPARK_HOME
-ls -ld /data/spark/work
-
-
-ENV PYTHONPATH="${SPARK_HOME}/python:${SPARK_HOME}/python/lib/py4j-*.zip"
-
-##
-
-ENV SPARK_HOME=/apps/spark
-ENV PATH="${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}"
-ENV PYSPARK_PYTHON=/usr/local/bin/python
-ENV PYSPARK_DRIVER_PYTHON=/usr/local/bin/python
-
-ENV PYTHONPATH="${SPARK_HOME}/python:${SPARK_HOME}/python/lib/py4j-0.10.9.7-src.zip"
+  volumes:
+    - name: spark-work
+      emptyDir: {}
