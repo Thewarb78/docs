@@ -1,15 +1,1 @@
-spark-submit \
-  --master k8s://https://<k8s-api-server> \
-  --deploy-mode cluster \
-  --name sparkpi-k8s-test \
-  --class org.apache.spark.examples.SparkPi \
-  --conf spark.kubernetes.namespace=spark \
-  --conf spark.kubernetes.container.image=<arti-host>/<repo>/blah \
-  --conf spark.kubernetes.container.image.pullSecrets=blah \
-  --conf spark.kubernetes.driver.podTemplateFile=/full/path/driver-pod-template.yaml \
-  --conf spark.kubernetes.executor.podTemplateFile=/full/path/executor-pod-template.yaml \
-  --conf spark.executor.instances=1 \
-  --conf spark.executor.cores=1 \
-  --conf spark.executor.memory=1g \
-  local:///apps/spark/examples/jars/spark-examples_2.12-3.5.3.jar \
-  10
+export JAVA_TOOL_OPTIONS="-Dhttp.nonProxyHosts=localhost|127.*|*.svc|*.cluster.local|your-k8s-host -Dhttps.nonProxyHosts=localhost|127.*|*.svc|*.cluster.local|your-k8s-host"
