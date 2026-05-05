@@ -1,34 +1,16 @@
-apiVersion: v1
-kind: Pod
-metadata:
-  name: image-test
-  namespace: spark   # change if needed
-spec:
-  restartPolicy: Never
+mkdir -p ~/tools
+cd ~/tools
 
-  imagePullSecrets:
-    - name: 
+# Get Spark 3.5.3
+curl -fLO https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
 
-  containers:
-    - name: spark
-      image: 
-      imagePullPolicy: Always
+# Extract
+tar -xzf spark-3.5.3-bin-hadoop3.tgz
 
-      command: ["sleep"]
-      args: ["3600"]
+# Set env for this shell
+export SPARK_HOME=~/tools/spark-3.5.3-bin-hadoop3
+export PATH="$SPARK_HOME/bin:$PATH"
 
-      resources:
-        requests:
-          memory: "1Gi"
-          cpu: "500m"
-        limits:
-          memory: "2Gi"
-          cpu: "1"
-
-      volumeMounts:
-        - name: spark-work
-          mountPath: /data/spark/work
-
-  volumes:
-    - name: spark-work
-      emptyDir: {}
+# Check
+spark-submit --version
+kubectl get pods -n spark
