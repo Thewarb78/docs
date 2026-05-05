@@ -1,16 +1,11 @@
-mkdir -p ~/tools
-cd ~/tools
-
-# Get Spark 3.5.3
-curl -fLO https://archive.apache.org/dist/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz
-
-# Extract
-tar -xzf spark-3.5.3-bin-hadoop3.tgz
-
-# Set env for this shell
-export SPARK_HOME=~/tools/spark-3.5.3-bin-hadoop3
-export PATH="$SPARK_HOME/bin:$PATH"
-
-# Check
-spark-submit --version
-kubectl get pods -n spark
+spark-submit \
+  --master k8s://https://<k8s-api-server> \
+  --deploy-mode cluster \
+  --name sparkpi-test \
+  --class org.apache.spark.examples.SparkPi \
+  --conf spark.kubernetes.namespace=spark \
+  --conf spark.kubernetes.container.image=<arti-host>/<repo>/spark-pyspark-base:3.5.3-py3.11-ubuntu22.04 \
+  --conf spark.kubernetes.container.image.pullSecrets=hhgg \
+  --conf spark.kubernetes.authenticate.driver.serviceAccountName=default \
+  local:///apps/spark/examples/jars/spark-examples_2.12-3.5.3.jar \
+  10
