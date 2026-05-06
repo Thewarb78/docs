@@ -1,23 +1,9 @@
-apiVersion: v1
-kind: Pod
-spec:
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-  containers:
-    - name: spark-kubernetes-driver
-      securityContext:
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-      volumeMounts:
-        - name: spark-work
-          mountPath: /data/spark/work
-        - name: tmp
-          mountPath: /tmp
-  volumes:
-    - name: spark-work
-      emptyDir: {}
-    - name: tmp
-      emptyDir: {}
+Hi Jorge,
+
+Understood, thanks.
+
+The issue for us is that the current process is fully automated through Ansible Tower using a dedicated automation account and is designed to run unattended.
+
+If the model only permits temporary/on-demand admin access for individual user accounts, then this will create operational challenges for the existing automation model. The current implementation is not designed to execute under rotating individual developer credentials.
+
+We can investigate possible adaptations from the automation side, however this is not a minor script change and would require rework of the current execution, credential handling, scheduling/unattended execution, auditability and long-term ownership approach.
