@@ -1,7 +1,18 @@
+echo $JAVA_HOME
+readlink -f $(which java)
 
+sudo find /usr/lib/jvm -path "*/lib/security/cacerts"
 
-I had a quick look and cannot currently see a "/sys/fs/cgroup/DSS" directory on the affected hosts, so this may not simply be an ownership issue. As "/sys/fs/cgroup" is runtime-managed, custom directories there may not be permanent.
+sudo keytool -importcert -noprompt -trustcacerts \
+  -alias corp-root \
+  -file corp-root.crt \
+  -keystore "$JAVA_HOME/lib/security/cacerts" \
+  -storepass changeit
 
-Also, I do not think enabling "trustAllSSLCertificates=true" directly in PRD is ideal from a security perspective. We should first check whether the correct CA/truststore configuration can be used instead.
+sudo keytool -importcert -noprompt -trustcacerts \
+  -alias corp-intermediate \
+  -file corp-intermediate.crt \
+  -keystore "$JAVA_HOME/lib/security/cacerts" \
+  -storepass changeit
 
-As the application is now live in PRD, I think normal change control should apply, and ideally changes should be validated in STG before moving directly to production.
+keytool -list -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit | grep -i corp
