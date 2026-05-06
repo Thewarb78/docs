@@ -1,18 +1,1 @@
-echo $JAVA_HOME
-readlink -f $(which java)
-
-sudo find /usr/lib/jvm -path "*/lib/security/cacerts"
-
-sudo keytool -importcert -noprompt -trustcacerts \
-  -alias corp-root \
-  -file corp-root.crt \
-  -keystore "$JAVA_HOME/lib/security/cacerts" \
-  -storepass changeit
-
-sudo keytool -importcert -noprompt -trustcacerts \
-  -alias corp-intermediate \
-  -file corp-intermediate.crt \
-  -keystore "$JAVA_HOME/lib/security/cacerts" \
-  -storepass changeit
-
-keytool -list -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit | grep -i corp
+export SPARK_SUBMIT_OPTS="-Djavax.net.ssl.trustStore=$JAVA_HOME/lib/security/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
