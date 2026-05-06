@@ -1,1 +1,1 @@
-export SPARK_SUBMIT_OPTS="-Djavax.net.ssl.trustStore=$JAVA_HOME/lib/security/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+--conf spark.kubernetes.authenticate.submission.caCertFile=/path/to/ca-bundle.crt
