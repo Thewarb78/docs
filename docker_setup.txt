@@ -1,2 +1,1 @@
-sed -i 's/\r$//' docker/scripts/entrypoint.sh
-sed -i 's/\r$//' docker/scripts/decom.sh
+docker run --rm -it --entrypoint bash <image>
