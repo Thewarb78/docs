@@ -1,1 +1,6 @@
---conf spark.kubernetes.authenticate.submission.caCertFile=/path/to/ca-bundle.crt
+spark-submit \
+  --master k8s://https://<k8s-api-server> \
+  --deploy-mode cluster \
+  --conf spark.kubernetes.authenticate.submission.caCertFile= \
+  --conf spark.kubernetes.trust.certificates=true \
+  ...
