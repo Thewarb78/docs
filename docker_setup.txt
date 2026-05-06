@@ -1,6 +1,23 @@
-spark-submit \
-  --master k8s://https://<k8s-api-server> \
-  --deploy-mode cluster \
-  --conf spark.kubernetes.authenticate.submission.caCertFile= \
-  --conf spark.kubernetes.trust.certificates=true \
-  ...
+apiVersion: v1
+kind: Pod
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containers:
+    - name: spark-kubernetes-driver
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+      volumeMounts:
+        - name: spark-work
+          mountPath: /data/spark/work
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: spark-work
+      emptyDir: {}
+    - name: tmp
+      emptyDir: {}
