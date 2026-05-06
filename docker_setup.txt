@@ -1,7 +1,2 @@
-RUN chmod 0755 /opt/entrypoint.sh /opt/decom.sh
-
-ENTRYPOINT ["/opt/entrypoint.sh"]
-
-USER 1000:1000
-
-RUN ln -sfn "$(basename /opt/spark/examples/jars/spark-examples_*.jar)" /opt/spark/examples/jars/spark-examples.jar
+sed -i 's/\r$//' docker/scripts/entrypoint.sh
+sed -i 's/\r$//' docker/scripts/decom.sh
