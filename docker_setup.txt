@@ -1,1 +1,1 @@
-COPY jobs/test_pyspark.py /opt/spark/jobs/test_pyspark.py
+--conf spark.kubernetes.container.image.pullPolicy=Always
