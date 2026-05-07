@@ -1,9 +1,1 @@
-from pyspark.sql import SparkSession
-
-spark = SparkSession.builder.appName("pyspark-test").getOrCreate()
-
-df = spark.range(1, 100)
-
-print("Count =", df.count())
-
-spark.stop()
+COPY jobs/test_pyspark.py /opt/spark/jobs/test_pyspark.py
