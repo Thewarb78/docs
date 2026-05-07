@@ -1,1 +1,22 @@
---conf spark.kubernetes.container.image.pullPolicy=Always
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-core-site
+  namespace: spark
+data:
+  core-site.xml: |
+    <configuration>
+      <!-- paste existing core-site.xml content here -->
+    </configuration>
+
+###
+
+volumeMounts:
+  - name: core-site
+    mountPath: /opt/spark/conf/core-site.xml
+    subPath: core-site.xml
+
+volumes:
+  - name: core-site
+    configMap:
+      name: spark-core-site
