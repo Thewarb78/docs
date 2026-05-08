@@ -1,3 +1,10 @@
-kubectl create secret generic spark-core-site \
-  --from-file=core-site.xml=core-site.xml \
-  -n spark
+volumes:
+  - name: spark-work
+    emptyDir: {}
+
+  - name: tmp
+    emptyDir: {}
+
+  - name: core-site
+    secret:
+      secretName: spark-core-site
