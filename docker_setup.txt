@@ -1,1 +1,2 @@
---conf spark.hadoop.fs.s3a.buffer.dir=/opt/spark/work-dir
+--conf spark.eventLog.enabled=true
+--conf spark.eventLog.dir=s3a://<bucket>/spark-history/
