@@ -1,1 +1,1 @@
-jar tf /opt/spark/jars/aws-java-sdk-bundle-*.jar | grep 'com/amazonaws/auth/AWSCredentialsProvider.class'
+--conf spark.hadoop.fs.s3a.buffer.dir=/opt/spark/work-dir
