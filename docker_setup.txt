@@ -1,17 +1,3 @@
-from pyspark.sql import SparkSession
-
-spark = SparkSession.builder.appName("pyspark-s3-test").getOrCreate()
-
-output_path = "s3a://YOUR-TEST-BUCKET/spark-k8s-test/output"
-
-df = spark.range(0, 10)
-
-df.write.mode("overwrite").parquet(output_path)
-
-print(f"Wrote test data to {output_path}")
-
-read_back = spark.read.parquet(output_path)
-
-print("Read back count =", read_back.count())
-
-spark.stop()
+kubectl create secret generic spark-core-site \
+  --from-file=core-site.xml=core-site.xml \
+  -n spark
