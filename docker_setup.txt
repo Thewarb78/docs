@@ -1,5 +1,1 @@
-spark.kubernetes.namespace=spark
-spark.kubernetes.authenticate.driver.serviceAccountName=spark
-spark.kubernetes.container.image.pullSecrets=blah
-spark.local.dir=/opt/spark/work-dir
-spark.hadoop.fs.s3a.buffer.dir=/opt/spark/work-dir
+COPY conf/spark-defaults.conf /opt/spark/conf/spark-defaults.conf
