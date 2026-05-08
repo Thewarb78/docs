@@ -1,1 +1,1 @@
-kubectl get secret spark-core-site -n spark -o jsonpath='{.data.core-site\.xml}' | base64 -d | xmllint --format -
+jar tf /opt/spark/jars/aws-java-sdk-bundle-*.jar | grep 'com/amazonaws/auth/AWSCredentialsProvider.class'
