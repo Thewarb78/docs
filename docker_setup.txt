@@ -1,3 +1,15 @@
+volumeMounts:
+  - name: spark-work
+    mountPath: /opt/spark/work-dir
+
+  - name: tmp
+    mountPath: /tmp
+
+  - name: core-site
+    mountPath: /opt/spark/conf/core-site.xml
+    subPath: core-site.xml
+
+
 volumes:
   - name: spark-work
     emptyDir: {}
