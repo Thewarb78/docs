@@ -1,1 +1,9 @@
-COPY conf/spark-defaults.conf /opt/spark/conf/spark-defaults.conf
+Validate executor-to-driver networking/routing in K8s client mode
+Determine driver hostname/DNS strategy for client mode
+Test client mode with existing Autosys/dev workflow
+Compare cluster mode vs client mode operational model
+Define code packaging strategy for client mode
+Assess security implications of external Spark drivers
+Validate pod template support in client mode
+Validate S3/core-site handling in client mode
+Evaluate containerised driver pattern for future migration
