@@ -1,9 +1,17 @@
-Validate executor-to-driver networking/routing in K8s client mode
-Determine driver hostname/DNS strategy for client mode
-Test client mode with existing Autosys/dev workflow
-Compare cluster mode vs client mode operational model
-Define code packaging strategy for client mode
-Assess security implications of external Spark drivers
-Validate pod template support in client mode
-Validate S3/core-site handling in client mode
-Evaluate containerised driver pattern for future migration
+spark-submit \
+  --master k8s://https://<k8s-api-server>:<port> \
+  --deploy-mode client \
+  --name pyspark-client-test \
+  --conf spark.kubernetes.namespace=spark \
+  --conf spark.kubernetes.trust.certificates=true \
+  --conf spark.kubernetes.container.image=<arti-image> \
+  --conf spark.kubernetes.container.image.pullSecrets=artifactory-pull-secret \
+  --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark \
+  --conf spark.kubernetes.executor.podTemplateFile=/path/to/executor-pod-template.yaml \
+  --conf spark.driver.host=<server-fqdn> \
+  --conf spark.driver.port=40440 \
+  --conf spark.blockManager.port=40441 \
+  --conf spark.executor.instances=2 \
+  --conf spark.local.dir=/opt/spark/work-dir \
+  --conf spark.hadoop.fs.s3a.buffer.dir=/opt/spark/work-dir \
+  /path/to/test_s3_pyspark.py
