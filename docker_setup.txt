@@ -1,3 +1,15 @@
-export NO_PROXY="<k8s-api-host>,.<cluster-domain>,.svc,.cluster.local,localhost,127.0.0.1"
-export no_proxy="$NO_PROXY"
-unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+spark-submit \
+  --master k8s://https://<k8s-api-server>:<port> \
+  --deploy-mode client \
+  --name pyspark-client-test \
+  --conf spark.kubernetes.namespace=spark \
+  --conf spark.kubernetes.trust.certificates=true \
+  --conf spark.kubernetes.container.image=<arti-image> \
+  --conf spark.kubernetes.container.image.pullSecrets=artifactory-pull-secret \
+  --conf spark.kubernetes.authenticate.serviceAccountName=spark \
+  --conf spark.kubernetes.executor.podTemplateFile=/path/to/executor-pod-template.yaml \
+  --conf spark.driver.host=$(hostname -f) \
+  --conf spark.driver.port=9100 \
+  --conf spark.blockManager.port=9200 \
+  --conf spark.executor.instances=2 \
+  /path/to/test_s3_pyspark.py
