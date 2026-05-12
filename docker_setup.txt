@@ -1,15 +1,3 @@
-.\bin\spark-submit.cmd `
-  --master k8s://https://<k8s-api-server>:<port> `
-  --deploy-mode client `
-  --name pyspark-client-test `
-  --conf spark.kubernetes.namespace=spark `
-  --conf spark.kubernetes.trust.certificates=true `
-  --conf spark.kubernetes.container.image=<arti-image> `
-  --conf spark.kubernetes.container.image.pullSecrets=blah `
-  --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark `
-  --conf spark.kubernetes.executor.podTemplateFile=C:\spark\conf\executor-pod-template.yaml `
-  --conf spark.driver.host=<windows-driver-fqdn> `
-  --conf spark.driver.port=9100 `
-  --conf spark.blockManager.port=9200 `
-  --conf spark.executor.instances=2 `
-  C:\spark\jobs\test_s3_pyspark.py
+export NO_PROXY="<k8s-api-host>,.<cluster-domain>,.svc,.cluster.local,localhost,127.0.0.1"
+export no_proxy="$NO_PROXY"
+unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
