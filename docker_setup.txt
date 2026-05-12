@@ -1,17 +1,80 @@
-export POD_IP=$(hostname -i)
+Proposed Namespace Model
 
-spark-submit \
-  --master k8s://https://kubernetes.default.svc \
-  --deploy-mode client \
-  --name pyspark-client-incluster-test \
-  --conf spark.kubernetes.namespace=spark \
-  --conf spark.kubernetes.container.image=<arti-image> \
-  --conf spark.kubernetes.container.image.pullSecrets=blah \
-  --conf spark.kubernetes.authenticate.serviceAccountName=spark \
-  --conf spark.kubernetes.executor.podTemplateFile=/path/to/executor-pod-template.yaml \
-  --conf spark.driver.host=$POD_IP \
-  --conf spark.driver.bindAddress=0.0.0.0 \
-  --conf spark.driver.port=9100 \
-  --conf spark.blockManager.port=9200 \
-  --conf spark.executor.instances=2 \
-  /path/to/test_s3_pyspark.py
+jobs namespace
+
+Contains:
+
+- General Python jobs
+- Spark submitter/driver pods (client mode)
+- Lightweight orchestration/runtime logic
+
+spark namespace
+
+Contains:
+
+- Spark executor pods only
+- Heavy distributed compute workloads
+- Platform-managed quotas/policies/security controls
+
+Rationale
+
+This separates:
+
+- lightweight application/orchestration workloads
+  from
+- heavy Spark compute workloads
+
+Benefits:
+
+- Central control of Spark executor capacity
+- Easier quota/governance for distributed compute
+- Cleaner separation of platform-managed compute resources
+- General jobs namespace not impacted by Spark executor scaling
+
+RBAC Requirements
+
+Spark submitter pods running in "jobs" namespace must be allowed to create/manage resources in "spark" namespace.
+
+Required approach
+
+1. Create ServiceAccount in "jobs" namespace
+
+Example:
+
+- "jobs:spark-submit"
+
+2. Create Role in "spark" namespace
+
+Permissions required for Spark executors/resources, e.g.:
+
+- pods
+- services
+- configmaps
+- pvc (if used)
+
+Typical verbs:
+
+- create
+- get
+- list
+- watch
+- patch
+- delete
+
+3. Create RoleBinding in "spark" namespace
+
+Bind:
+
+- "jobs:spark-submit"
+
+to:
+
+- Spark executor management Role in "spark"
+
+Additional Considerations
+
+- Secrets required by executors (e.g. Hadoop/core-site config, image pull secrets) must exist in "spark" namespace
+- Logs/events/debugging will span "jobs" and "spark" namespaces
+- Spark submitter uses:
+  - "spark.kubernetes.namespace=spark"
+- Submitter pod itself still runs in "jobs"
