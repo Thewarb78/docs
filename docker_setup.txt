@@ -1,17 +1,5 @@
-spark-submit \
-  --master k8s://https://<k8s-api-server>:<port> \
-  --deploy-mode client \
-  --name pyspark-client-test \
-  --conf spark.kubernetes.namespace=spark \
-  --conf spark.kubernetes.trust.certificates=true \
-  --conf spark.kubernetes.container.image=<arti-image> \
-  --conf spark.kubernetes.container.image.pullSecrets=artifactory-pull-secret \
-  --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark \
-  --conf spark.kubernetes.executor.podTemplateFile=/path/to/executor-pod-template.yaml \
-  --conf spark.driver.host=<server-fqdn> \
-  --conf spark.driver.port=40440 \
-  --conf spark.blockManager.port=40441 \
-  --conf spark.executor.instances=2 \
-  --conf spark.local.dir=/opt/spark/work-dir \
-  --conf spark.hadoop.fs.s3a.buffer.dir=/opt/spark/work-dir \
-  /path/to/test_s3_pyspark.py
+$env:SPARK_HOME="C:\spark-3.5.3"
+$env:PYSPARK_PYTHON="C:\Python311\python.exe"
+$env:PYSPARK_DRIVER_PYTHON="C:\Python311\python.exe"
+$env:JAVA_HOME="C:\Java\jdk-17"
+$env:PATH="$env:SPARK_HOME\bin;$env:JAVA_HOME\bin;$env:PATH"
