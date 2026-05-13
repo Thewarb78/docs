@@ -1,5 +1,6 @@
-docker build \
-  --build-arg BASE_IMAGE=${BASE_IMAGE} \
-  -t ${LOCAL_IMAGE_NAME}:${IMAGE_TAG} \
-  -t ${REMOTE_IMAGE_NAME}:${IMAGE_TAG} \
-  .
+
+
+COPY apt/ /tmp/apt/
+
+RUN cp "/tmp/apt/${UBUNTU_OS_CODE}-mirror.list" \
+       "/etc/apt/sources.list.d/${UBUNTU_OS_CODE}-mirror.list"
