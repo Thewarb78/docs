@@ -1,80 +1,25 @@
-Proposed Namespace Model
+#!/bin/bash
 
-jobs namespace
+set -a
+source "$1"
+set +a
 
-Contains:
+docker build \
+  --build-arg BASE_IMAGE=${BASE_IMAGE} \
+  --build-arg SPARK_VERSION=${SPARK_VERSION} \
+  --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
+  -t ${IMAGE_NAME}:${IMAGE_TAG} .
 
-- General Python jobs
-- Spark submitter/driver pods (client mode)
-- Lightweight orchestration/runtime logic
+./build.sh versions/spark-3.5.3-py311.env
 
-spark namespace
+SPARK_VERSION=3.5.3
+PYTHON_VERSION=3.11.10
+JAVA_VERSION=17
 
-Contains:
+BASE_IMAGE=artifactory.company.com/docker/ubuntu-java17:22.04
 
-- Spark executor pods only
-- Heavy distributed compute workloads
-- Platform-managed quotas/policies/security controls
+IMAGE_NAME=artifactory.company.com/spark/spark-base
+IMAGE_TAG=3.5.3-py3.11-u22-r1
 
-Rationale
-
-This separates:
-
-- lightweight application/orchestration workloads
-  from
-- heavy Spark compute workloads
-
-Benefits:
-
-- Central control of Spark executor capacity
-- Easier quota/governance for distributed compute
-- Cleaner separation of platform-managed compute resources
-- General jobs namespace not impacted by Spark executor scaling
-
-RBAC Requirements
-
-Spark submitter pods running in "jobs" namespace must be allowed to create/manage resources in "spark" namespace.
-
-Required approach
-
-1. Create ServiceAccount in "jobs" namespace
-
-Example:
-
-- "jobs:spark-submit"
-
-2. Create Role in "spark" namespace
-
-Permissions required for Spark executors/resources, e.g.:
-
-- pods
-- services
-- configmaps
-- pvc (if used)
-
-Typical verbs:
-
-- create
-- get
-- list
-- watch
-- patch
-- delete
-
-3. Create RoleBinding in "spark" namespace
-
-Bind:
-
-- "jobs:spark-submit"
-
-to:
-
-- Spark executor management Role in "spark"
-
-Additional Considerations
-
-- Secrets required by executors (e.g. Hadoop/core-site config, image pull secrets) must exist in "spark" namespace
-- Logs/events/debugging will span "jobs" and "spark" namespaces
-- Spark submitter uses:
-  - "spark.kubernetes.namespace=spark"
-- Submitter pod itself still runs in "jobs"
+HADOOP_AWS_VERSION=3.4.1
+AWS_SDK_VERSION=1.12.262
