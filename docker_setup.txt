@@ -1,25 +1,5 @@
-#!/bin/bash
-
-set -a
-source "$1"
-set +a
-
 docker build \
   --build-arg BASE_IMAGE=${BASE_IMAGE} \
-  --build-arg SPARK_VERSION=${SPARK_VERSION} \
-  --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
-  -t ${IMAGE_NAME}:${IMAGE_TAG} .
-
-./build.sh versions/spark-3.5.3-py311.env
-
-SPARK_VERSION=3.5.3
-PYTHON_VERSION=3.11.10
-JAVA_VERSION=17
-
-BASE_IMAGE=artifactory.company.com/docker/ubuntu-java17:22.04
-
-IMAGE_NAME=artifactory.company.com/spark/spark-base
-IMAGE_TAG=3.5.3-py3.11-u22-r1
-
-HADOOP_AWS_VERSION=3.4.1
-AWS_SDK_VERSION=1.12.262
+  -t ${LOCAL_IMAGE_NAME}:${IMAGE_TAG} \
+  -t ${REMOTE_IMAGE_NAME}:${IMAGE_TAG} \
+  .
