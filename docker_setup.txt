@@ -1,31 +1,3 @@
-stage('Build and push') {
-  steps {
-    withCredentials([usernamePassword(
-      credentialsId: 'artifactory-creds',
-      usernameVariable: 'ART_USER',
-      passwordVariable: 'ART_PASS'
-    )]) {
-
-      sh '''
-        set -e
-
-        trap 'rm -f arti_auth' EXIT
-
-        printf "%s:%s" "$ART_USER" "$ART_PASS" > arti_auth
-
-        echo "$ART_PASS" | docker login "$REGISTRY" \
-          -u "$ART_USER" \
-          --password-stdin
-
-        docker buildx build \
-          --secret id=,src= \
-          --platform linux/amd64 \
-          --progress=plain \
-          --provenance=false \
-          --push \
-          -t "${IMAGE_NAME}:${IMAGE_TAG}" \
-          .
-      '''
-    }
-  }
-}
+set -a
+        . "versions/${ENV_FILE}"
+        set +a
