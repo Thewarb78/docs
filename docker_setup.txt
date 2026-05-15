@@ -1,63 +1,31 @@
-pipeline {
-  agent {
-    label 'dockerce'
-  }
+stage('Build and push') {
+  steps {
+    withCredentials([usernamePassword(
+      credentialsId: 'artifactory-creds',
+      usernameVariable: 'ART_USER',
+      passwordVariable: 'ART_PASS'
+    )]) {
 
-  parameters {
-    choice(
-      name: 'ENV_FILE',
-      choices: [
-        'spark-3.5.3-python3.11.env',
-        'spark-3.5.4-python3.11.env'
-      ],
-      description: 'Build config'
-    )
-  }
+      sh '''
+        set -e
 
-  stages {
+        trap 'rm -f arti_auth' EXIT
 
-    stage('Load env') {
-      steps {
-        script {
-          def props = readProperties file: "env/${params.ENV_FILE}"
+        printf "%s:%s" "$ART_USER" "$ART_PASS" > arti_auth
 
-          props.each { k, v ->
-            env[k] = v
-          }
-        }
-      }
-    }
+        echo "$ART_PASS" | docker login "$REGISTRY" \
+          -u "$ART_USER" \
+          --password-stdin
 
-    stage('Docker login') {
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'a-creds',
-          usernameVariable: 'DOCKER_USER',
-          passwordVariable: 'DOCKER_PASS'
-        )]) {
-
-          sh '''
-            echo "$DOCKER_PASS" | docker login ${REGISTRY} \
-              -u "$DOCKER_USER" \
-              --password-stdin
-          '''
-        }
-      }
-    }
-
-    stage('Build and push') {
-      steps {
-        sh '''
-          docker buildx build \
-            --push \
-            --platform linux/amd64 \
-            --build-arg SPARK_VERSION=${SPARK_VERSION} \
-            --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
-            --build-arg BASE_IMAGE=${BASE_IMAGE} \
-            -t ${IMAGE_NAME}:${IMAGE_TAG} \
-            .
-        '''
-      }
+        docker buildx build \
+          --secret id=,src= \
+          --platform linux/amd64 \
+          --progress=plain \
+          --provenance=false \
+          --push \
+          -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+          .
+      '''
     }
   }
 }
