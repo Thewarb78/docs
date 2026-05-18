@@ -13,3 +13,5 @@ repo/
       spark/
     prd/
       spark/
+
+spark-k8s-platform
