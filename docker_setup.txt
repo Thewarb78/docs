@@ -15,3 +15,5 @@ repo/
       spark/
 
 spark-k8s-platform
+
+Kubernetes platform configuration for Spark-on-Kubernetes runtime components, including namespace resources, RBAC, service accounts, History Server, Gateway API configuration and related operational platform manifests managed via Argo CD.
