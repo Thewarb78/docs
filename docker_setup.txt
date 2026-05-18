@@ -1,1 +1,32 @@
-kubectl get rolebinding -n <working-namespace>
+#!/bin/bash
+set -e
+
+echo "=== User ==="
+whoami
+id
+
+echo "=== Python ==="
+python --version
+pip --version
+
+echo "=== Java ==="
+java -version
+
+echo "=== Spark ==="
+/opt/spark/bin/spark-submit --version
+
+echo "=== Required files ==="
+test -f /opt/spark/conf/spark-defaults.conf
+test -f /opt/spark/conf/log4j2.properties
+
+echo "=== Writable temp ==="
+touch /tmp/testfile
+rm -f /tmp/testfile
+
+echo "=== Non-root check ==="
+if [ "$(id -u)" = "0" ]; then
+  echo "Container running as root"
+  exit 1
+fi
+
+echo "Smoke test passed"
