@@ -1,1 +1,4 @@
-Container image build and runtime configuration for the Spark-on-Kubernetes platform, including Spark base images, Python runtime, Hadoop/S3 integration, shared Spark defaults, executor pod templates and related build/versioning assets.
+command:
+  - /bin/sh
+  - -c
+  - sleep infinity
