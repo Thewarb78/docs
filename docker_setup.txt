@@ -1,3 +1,15 @@
-echo "$AR" | docker login "$REGISTRY" \
-  -u "$A" \
-  --password-stdin
+AppProject: spark-platform
+Application: spark-namespace-platform
+Target namespace: spark
+
+repo/
+  environments/
+    dev/
+      spark/
+        rbac.yaml
+        history-server.yaml
+        gateway.yaml
+    stg/
+      spark/
+    prd/
+      spark/
