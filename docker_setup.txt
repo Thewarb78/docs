@@ -1,4 +1,1 @@
-command:
-  - /bin/sh
-  - -c
-  - sleep infinity
+kubectl get rolebinding -n <working-namespace>
