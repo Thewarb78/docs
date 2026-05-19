@@ -1,14 +1,16 @@
-post {
-  always {
+stage('Smoke Test Image') {
+  steps {
     sh '''
-      set +e
+      set -e
 
       set -a
       . "versions/${ENV_FILE}"
       set +a
 
-      docker image rm ${REMOTE_IMAGE_NAME}:${IMAGE_TAG} || true
-      docker builder prune -f --filter until=24h || true
+      docker run --rm \
+        --entrypoint bash \
+        ${REMOTE_IMAGE_NAME}:${IMAGE_TAG} \
+        /opt/spark/tests/smoke-test.sh
     '''
   }
 }
