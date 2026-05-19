@@ -1,1 +1,3 @@
-source ~/bashrc.d/setup-env.sh
+if [ -f "$HOME/bashrc.d/setup-env.sh" ]; then
+  . "$HOME/bashrc.d/setup-env.sh"
+fi
