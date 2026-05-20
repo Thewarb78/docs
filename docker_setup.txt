@@ -1,16 +1,5 @@
-stage('Smoke Test Image') {
-  steps {
-    sh '''
-      set -e
-
-      set -a
-      . "versions/${ENV_FILE}"
-      set +a
-
-      docker run --rm \
-        --entrypoint bash \
-        ${REMOTE_IMAGE_NAME}:${IMAGE_TAG} \
-        /opt/spark/tests/smoke-test.sh
-    '''
-  }
-}
+[Environment]::SetEnvironmentVariable(
+  "Path",
+  $env:Path + ";C:\k8s\kubectl",
+  "User"
+)
