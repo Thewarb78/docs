@@ -1,45 +1,39 @@
-function Use-KubeCluster {
+# kubeconfigs folder relative to this script
+$configDir = ".\kubeconfigs"
 
-    # Script directory
-    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-
-    # Fallback for interactive shell
-    if (-not $scriptDir) {
-        $scriptDir = (Get-Location).Path
-    }
-
-    $configDir = Join-Path $scriptDir "kubeconfigs"
-
-    if (-not (Test-Path $configDir)) {
-        Write-Error "kubeconfigs folder not found: $configDir"
-        return
-    }
-
-    $configs = Get-ChildItem $configDir -File |
-        Where-Object { $_.Extension -in ".yaml", ".yml", ".config" }
-
-    if (-not $configs) {
-        Write-Error "No kubeconfigs found."
-        return
-    }
-
-    $selection = $configs |
-        Select-Object @{
-            Name = "Cluster"
-            Expression = { $_.BaseName }
-        }, FullName |
-        Out-GridView -Title "Select Cluster" -PassThru
-
-    if (-not $selection) {
-        return
-    }
-
-    $env:KUBECONFIG = $selection.FullName
-
-    Write-Host ""
-    Write-Host "Using cluster: $($selection.Cluster)"
-    Write-Host "KUBECONFIG=$env:KUBECONFIG"
-    Write-Host ""
-
-    kubectl config current-context
+if (-not (Test-Path $configDir)) {
+    Write-Error "kubeconfigs folder not found: $configDir"
+    exit
 }
+
+# Find kubeconfig files
+$configs = Get-ChildItem $configDir -File |
+    Where-Object { $_.Extension -in ".yaml", ".yml", ".config" }
+
+if (-not $configs) {
+    Write-Error "No kubeconfig files found."
+    exit
+}
+
+# Show selection window
+$selection = $configs |
+    Select-Object @{
+        Name = "Cluster"
+        Expression = { $_.BaseName }
+    }, FullName |
+    Out-GridView -Title "Select Kubernetes Cluster" -PassThru
+
+if (-not $selection) {
+    Write-Host "No cluster selected."
+    exit
+}
+
+# Set kubeconfig for current shell session
+$env:KUBECONFIG = $selection.FullName
+
+Write-Host ""
+Write-Host "Using cluster: $($selection.Cluster)"
+Write-Host "KUBECONFIG=$env:KUBECONFIG"
+Write-Host ""
+
+kubectl config current-context
