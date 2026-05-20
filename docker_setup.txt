@@ -1,49 +1,44 @@
-k8s-tools/
-├── use-cluster.ps1
-└── kubeconfigs/
-    ├── dev.yaml
-    ├── test.yaml
-    └── prod.yaml
-
 function Use-KubeCluster {
 
-    # Folder relative to this script
-    $configDir = Join-Path $PSScriptRoot "kubeconfigs"
+    # Script directory
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+    # Fallback for interactive shell
+    if (-not $scriptDir) {
+        $scriptDir = (Get-Location).Path
+    }
+
+    $configDir = Join-Path $scriptDir "kubeconfigs"
 
     if (-not (Test-Path $configDir)) {
         Write-Error "kubeconfigs folder not found: $configDir"
         return
     }
 
-    # Find kubeconfig files
-    $configs = Get-ChildItem -Path $configDir -File |
+    $configs = Get-ChildItem $configDir -File |
         Where-Object { $_.Extension -in ".yaml", ".yml", ".config" }
 
     if (-not $configs) {
-        Write-Error "No kubeconfig files found in $configDir"
+        Write-Error "No kubeconfigs found."
         return
     }
 
-    # Build selection list
     $selection = $configs |
         Select-Object @{
             Name = "Cluster"
             Expression = { $_.BaseName }
         }, FullName |
-        Out-GridView -Title "Select Kubernetes Cluster" -PassThru
+        Out-GridView -Title "Select Cluster" -PassThru
 
     if (-not $selection) {
-        Write-Host "No cluster selected."
         return
     }
 
-    # Set for current session only
     $env:KUBECONFIG = $selection.FullName
 
     Write-Host ""
-    Write-Host "Active cluster: $($selection.Cluster)"
-    Write-Host "KUBECONFIG:"
-    Write-Host "  $env:KUBECONFIG"
+    Write-Host "Using cluster: $($selection.Cluster)"
+    Write-Host "KUBECONFIG=$env:KUBECONFIG"
     Write-Host ""
 
     kubectl config current-context
