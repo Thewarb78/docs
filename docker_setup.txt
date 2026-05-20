@@ -1,1 +1,4 @@
-$configDir = Join-Path $PSScriptRoot "kubeconfigs"
+executor count
+executor cores
+executor memory
+total granted cores
