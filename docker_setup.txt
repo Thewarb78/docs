@@ -1,3 +1,10 @@
+Current standalone/dev Spark estate:
+9 workers
+16 CPU per worker
+30 GB RAM per worker
+Approx total capacity:
+144 CPU
+270 GB RAM
 Current K8s dev cluster:
 6 workers/nodes
 4 CPU per node
@@ -5,8 +12,3 @@ Current K8s dev cluster:
 Approx total capacity:
 24 CPU
 96 GB RAM
-Observed workload information from current jobs:
-Latest observed executor memory usage:
-~24 GB per executor
-Largest observed CPU usage:
-~68 CPU
