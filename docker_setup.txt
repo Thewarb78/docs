@@ -1,3 +1,39 @@
-FROM <official-spark-operator-image>
+apiVersion: v1
+kind: Pod
 
-USER 1000:1000
+metadata:
+  name: spark-operator-test
+  namespace: spark
+
+spec:
+  serviceAccountName: spark
+
+  imagePullSecrets:
+    - name: 
+
+  securityContext:
+    runAsNonRoot: true
+
+  containers:
+    - name: spark-operator-test
+
+      image: <your-arti-operator-image>:<tag>
+
+      imagePullPolicy: Always
+
+      command:
+        - sleep
+        - infinity
+
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "256Mi"
+
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
