@@ -1,2 +1,3 @@
-python -m pip install -vvv your-package
-python -m pip install -vvv 'your-package==1.2.3'
+Get-ChildItem WSMan:\localhost\Listener |
+    Where-Object { $_.Keys -match 'Transport=HTTPS' } |
+    Remove-Item -Recurse
