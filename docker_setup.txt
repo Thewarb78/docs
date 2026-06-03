@@ -1,3 +1,1 @@
-Get-ChildItem Env: | ForEach-Object {
-    Write-Output "$($_.Name)=$($_.Value)"
-}
+kubectl auth can-i '*' customresourcedefinitions
