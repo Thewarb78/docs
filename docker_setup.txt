@@ -1,1 +1,1 @@
-kubectl auth can-i create customresourcedefinitions.apiextensions.k8s.io --namespace=''
+kubectl get clusterrolebinding | findstr argo
