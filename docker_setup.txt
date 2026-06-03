@@ -1,1 +1,1 @@
-kubectl auth can-i '*' customresourcedefinitions
+kubectl auth can-i create customresourcedefinitions.apiextensions.k8s.io
