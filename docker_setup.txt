@@ -1,10 +1,1 @@
-$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 9100)
-$listener.Start()
-
-Write-Host "Listening on port 9100..."
-
-while ($true) {
-    $client = $listener.AcceptTcpClient()
-    Write-Host "Connection from $($client.Client.RemoteEndPoint)"
-    $client.Close()
-}
+python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('windows-host-fqdn',9100)); print('CONNECTED'); s.close()"
