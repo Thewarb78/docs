@@ -1,1 +1,1 @@
---conf spark.kubernetes.authenticate.oauthTokenFile=C:\k8s\spark-token.txt
+spark.kubernetes.executor.podTemplateFile=D:\k8s_clientmode_test\executor-pod-template-client.yaml
