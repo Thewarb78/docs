@@ -1,1 +1,2 @@
-spark.kubernetes.executor.podTemplateFile=file:///D:/k8s_clientmode_test/executor-pod-template-client.yaml
+kubectl get pod <working-linux-executor> -n spark -o yaml > working.yaml
+kubectl get pod <failed-windows-executor> -n spark -o yaml > failed.yaml
