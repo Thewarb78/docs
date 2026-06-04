@@ -1,1 +1,1 @@
-spark.kubernetes.executor.podTemplateFile=D:\k8s_clientmode_test\executor-pod-template-client.yaml
+spark.kubernetes.executor.podTemplateFile=file:///D:/k8s_clientmode_test/executor-pod-template-client.yaml
