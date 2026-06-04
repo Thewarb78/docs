@@ -1,1 +1,1 @@
-python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('windows-host-fqdn',9100)); print('CONNECTED'); s.close()"
+set PATH=C:\tools\pinniped;%PATH%
