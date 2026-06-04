@@ -1,1 +1,1 @@
-set PATH=C:\tools\pinniped;%PATH%
+--conf spark.kubernetes.authenticate.oauthTokenFile=C:\k8s\spark-token.txt
