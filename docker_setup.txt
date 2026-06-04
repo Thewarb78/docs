@@ -1,1 +1,10 @@
-kubectl get clusterrolebinding | findstr argo
+$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 9100)
+$listener.Start()
+
+Write-Host "Listening on port 9100..."
+
+while ($true) {
+    $client = $listener.AcceptTcpClient()
+    Write-Host "Connection from $($client.Client.RemoteEndPoint)"
+    $client.Close()
+}
