@@ -1,1 +1,13 @@
---properties-file D:\k8s_clientmode_test\spark-defaults-k8s-client.conf
+$pinnipedJson = & pinniped login oidc `
+  --issuer "https://" `
+  --client-id "pinniped-cli" `
+  --scopes "offline_access,openid,pinniped:request-audience,username,groups" `
+  --ca-bundle "C:\k8s\ca-bundle.pem" `
+  --request-audience "cluster" `
+  --upstream-identity-provider-name "eldap" `
+  --upstream-identity-provider-type "ldap" `
+  --upstream-identity-provider-flow "cli_password"
+
+$cred = $pinnipedJson | ConvertFrom-Json
+
+$cred.status.token | Set-Content "C:\k8s\token.txt" -NoNewline
