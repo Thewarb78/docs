@@ -1,13 +1,43 @@
-$pinnipedJson = & pinniped login oidc `
-  --issuer "https://" `
-  --client-id "pinniped-cli" `
-  --scopes "offline_access,openid,pinniped:request-audience,username,groups" `
-  --ca-bundle "C:\k8s\ca-bundle.pem" `
-  --request-audience "cluster" `
-  --upstream-identity-provider-name "eldap" `
-  --upstream-identity-provider-type "ldap" `
-  --upstream-identity-provider-flow "cli_password"
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, rand, sum as spark_sum, count
 
-$cred = $pinnipedJson | ConvertFrom-Json
+spark = (
+    SparkSession.builder
+    .appName("spark-k8s-stress-test")
+    .getOrCreate()
+)
 
-$cred.status.token | Set-Content "C:\k8s\token.txt" -NoNewline
+sc = spark.sparkContext
+sc.setLogLevel("INFO")
+
+num_rows = 50_000_000
+num_partitions = 200
+
+print(f"Creating {num_rows} rows across {num_partitions} partitions")
+
+df = (
+    spark.range(0, num_rows, 1, numPartitions=num_partitions)
+    .withColumn("key", (col("id") % 10000))
+    .withColumn("value", rand())
+)
+
+print("Running shuffle-heavy aggregation")
+
+result = (
+    df.repartition(num_partitions, "key")
+    .groupBy("key")
+    .agg(
+        count("*").alias("row_count"),
+        spark_sum("value").alias("value_sum")
+    )
+)
+
+print("Forcing execution")
+result.count()
+
+print("Running sort")
+result.orderBy(col("value_sum").desc()).count()
+
+print("Done")
+
+spark.stop()
