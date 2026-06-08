@@ -10,34 +10,36 @@ spark = (
 sc = spark.sparkContext
 sc.setLogLevel("INFO")
 
-num_rows = 50_000_000
-num_partitions = 200
+num_rows = 200_000_000
+num_partitions = 400
 
 print(f"Creating {num_rows} rows across {num_partitions} partitions")
 
 df = (
     spark.range(0, num_rows, 1, numPartitions=num_partitions)
-    .withColumn("key", (col("id") % 10000))
+    .withColumn("key", (col("id") % 100000))
     .withColumn("value", rand())
 )
 
-print("Running shuffle-heavy aggregation")
+for i in range(5):
 
-result = (
-    df.repartition(num_partitions, "key")
-    .groupBy("key")
-    .agg(
-        count("*").alias("row_count"),
-        spark_sum("value").alias("value_sum")
+    print(f"===== ITERATION {i+1} =====")
+
+    result = (
+        df.repartition(num_partitions, "key")
+          .groupBy("key")
+          .agg(
+              count("*").alias("row_count"),
+              spark_sum("value").alias("value_sum")
+          )
     )
-)
 
-print("Forcing execution")
-result.count()
+    print("Executing aggregation...")
+    result.count()
 
-print("Running sort")
-result.orderBy(col("value_sum").desc()).count()
+    print("Executing sort...")
+    result.orderBy(col("value_sum").desc()).count()
 
-print("Done")
+print("Finished")
 
 spark.stop()
