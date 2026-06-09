@@ -1,10 +1,1 @@
-SELECT
-    DB_NAME(s.database_id) AS database_name,
-    s.login_name,
-    s.host_name,
-    s.program_name,
-    s.status,
-    s.last_request_start_time,
-    s.last_request_end_time
-FROM sys.dm_exec_sessions s
-WHERE s.database_id = DB_ID('dbname');
+spark.sql.warehouse.dir=/opt/spark/work-dir/spark-warehouse
