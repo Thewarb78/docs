@@ -1,45 +1,9 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, rand, sum as spark_sum, count
-
-spark = (
-    SparkSession.builder
-    .appName("spark-k8s-stress-test")
-    .getOrCreate()
-)
-
-sc = spark.sparkContext
-sc.setLogLevel("INFO")
-
-num_rows = 200_000_000
-num_partitions = 400
-
-print(f"Creating {num_rows} rows across {num_partitions} partitions")
-
-df = (
-    spark.range(0, num_rows, 1, numPartitions=num_partitions)
-    .withColumn("key", (col("id") % 100000))
-    .withColumn("value", rand())
-)
-
-for i in range(5):
-
-    print(f"===== ITERATION {i+1} =====")
-
-    result = (
-        df.repartition(num_partitions, "key")
-          .groupBy("key")
-          .agg(
-              count("*").alias("row_count"),
-              spark_sum("value").alias("value_sum")
-          )
-    )
-
-    print("Executing aggregation...")
-    result.count()
-
-    print("Executing sort...")
-    result.orderBy(col("value_sum").desc()).count()
-
-print("Finished")
-
-spark.stop()
+SELECT
+    DB_NAME(database_id) AS DatabaseName,
+    MAX(last_user_seek) AS LastSeek,
+    MAX(last_user_scan) AS LastScan,
+    MAX(last_user_lookup) AS LastLookup,
+    MAX(last_user_update) AS LastUpdate
+FROM sys.dm_db_index_usage_stats
+WHERE database_id = DB_ID('YourDatabase')
+GROUP BY database_id;
