@@ -1,9 +1,10 @@
 SELECT
-    DB_NAME(database_id) AS DatabaseName,
-    MAX(last_user_seek) AS LastSeek,
-    MAX(last_user_scan) AS LastScan,
-    MAX(last_user_lookup) AS LastLookup,
-    MAX(last_user_update) AS LastUpdate
-FROM sys.dm_db_index_usage_stats
-WHERE database_id = DB_ID('YourDatabase')
-GROUP BY database_id;
+    DB_NAME(s.database_id) AS database_name,
+    s.login_name,
+    s.host_name,
+    s.program_name,
+    s.status,
+    s.last_request_start_time,
+    s.last_request_end_time
+FROM sys.dm_exec_sessions s
+WHERE s.database_id = DB_ID('dbname');
