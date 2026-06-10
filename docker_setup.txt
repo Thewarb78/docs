@@ -1,4 +1,1 @@
-10 workers
-16 CPU
-96 GB RAM
-= 160 CPU / 960 GB RAM
+cat /etc/apt/sources.list.d/ubuntu.sources
