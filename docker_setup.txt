@@ -1,1 +1,4 @@
-spark.hadoop.fs.s3a.buffer.dir=/opt/spark/work-dir/s3a
+10 workers
+16 CPU
+96 GB RAM
+= 160 CPU / 960 GB RAM
