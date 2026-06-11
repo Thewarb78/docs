@@ -1,3 +1,1 @@
-RUN printf '\n%s\n' \
-    "spark.kubernetes.container.image=ary/spark:${IMAGE_TAG}" \
-    >> $SPARK_HOME/conf/spark-defaults.conf
+find / -name "*.gpg" 2>/dev/null -exec sh -c 'gpg --show-keys --with-fingerprint "$1" 2>/dev/null | grep -iq "theid" && echo "$1"' _ {} \;
