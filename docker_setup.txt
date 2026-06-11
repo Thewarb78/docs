@@ -1,1 +1,4 @@
-ls /opt/spark/jars | grep -Ei "hadoop-aws|aws-java|aws|jackson"
+ARG IMAGE_TAG
+
+RUN echo "spark.kubernetes.container.image=ar/spark:${IMAGE_TAG}" \
+    >> $SPARK_HOME/conf/spark-defaults.conf
