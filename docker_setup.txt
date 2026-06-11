@@ -1,1 +1,1 @@
-find / -name "*.gpg" 2>/dev/null -exec sh -c 'gpg --show-keys --with-fingerprint "$1" 2>/dev/null | grep -iq "theid" && echo "$1"' _ {} \;
+[trusted=yes]
