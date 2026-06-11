@@ -1,4 +1,3 @@
-ARG IMAGE_TAG
-
-RUN echo "spark.kubernetes.container.image=ar/spark:${IMAGE_TAG}" \
+RUN printf '\n%s\n' \
+    "spark.kubernetes.container.image=ary/spark:${IMAGE_TAG}" \
     >> $SPARK_HOME/conf/spark-defaults.conf
