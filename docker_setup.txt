@@ -1,1 +1,1 @@
-https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.29.52/bundle-2.29.52.jar
+ls /opt/spark/jars | grep -Ei "hadoop-aws|aws-java|aws|jackson"
