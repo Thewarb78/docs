@@ -1,1 +1,7 @@
-[trusted=yes]
+Write-Host "JAVA_HOME = $env:JAVA_HOME"
+
+if (Test-Path $env:JAVA_HOME) {
+    Write-Host "Path exists"
+} else {
+    Write-Host "Path does NOT exist"
+}
