@@ -1,3 +1,0 @@
-sudo cat /proc/$(pgrep -f mcp_server.py)/environ | tr '\0' '\n'
-
-systemctl show your-service-name --property=Environment
