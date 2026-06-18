@@ -1,1 +1,65 @@
-kubectl get pod <workflow-pod> -n argo-core -o jsonpath="{.spec.serviceAccountName}"
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: spark-submit-test-
+  namespace: argo-spark
+spec:
+  entrypoint: spark-submit
+  serviceAccountName: spark
+
+  imagePullSecrets:
+    - name: t
+
+  templates:
+    - name: spark-submit
+      container:
+        image: <y-spark-image>:<tag>
+        imagePullPolicy: Always
+
+        command:
+          - /opt/spark/bin/spark-submit
+
+        args:
+          - --master
+          - k8s://https://kubernetes.default.svc
+          - --deploy-mode
+          - client
+          - --conf
+          - spark.kubernetes.namespace=ar
+          - --conf
+          - spark.kubernetes.authenticate.driver.serviceAccountName=
+          - --conf
+          - spark.driver.host=$(POD_IP)
+          - --conf
+          - spark.driver.bindAddress=0.0.0.0
+          - --conf
+          - spark.driver.port=9100
+          - --conf
+          - spark.blockManager.port=9200
+          - local:///opt/spark/examples/src/main/python/pi.py
+
+        env:
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+
+          - name: SPARK_LOCAL_DIRS
+            value: /opt/spark/work-dir
+
+        resources:
+          requests:
+            cpu: "1"
+            memory: "4Gi"
+          limits:
+            cpu: "2"
+            memory: "6Gi"
+
+        securityContext:
+          runAsUser: 185
+          runAsGroup: 185
+          allowPrivilegeEscalation: false
+
+        volumeMounts:
+          - name: spark-work-dir
+            mountPath: /opt
