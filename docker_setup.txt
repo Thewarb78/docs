@@ -1,1 +1,3 @@
-kubectl -n spark port-forward svc/spark-history-server 18080:18080
+nginx -V 2>&1
+file $(which nginx)
+readelf -S $(which nginx) | grep debug
