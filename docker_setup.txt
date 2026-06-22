@@ -1,26 +1,42 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: spark-executor-manager
-  namespace: spark
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "pods/log", "services", "configmaps"]
-    verbs: ["create", "get", "list", "watch", "delete", "deletecollection"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: argo-sp-sa-can-manage-spark-executors
-  namespace: spark
-subjects:
-  - kind: ServiceAccount
-    name: argo-sp
-    namespace: argo-spark
-roleRef:
-  kind: Role
-  name: spark-executor-manager
-  apiGroup: rbac.authorization.k8s.io
+status = error
+name = SparkPlatformLogConfig
+
+appender.console.type = Console
+appender.console.name = Console
+appender.console.target = SYSTEM_ERR
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}: %m%n
+
+rootLogger.level = WARN
+rootLogger.appenderRefs = console
+rootLogger.appenderRef.console.ref = Console
+
+logger.spark.name = org.apache.spark
+logger.spark.level = WARN
+
+logger.hadoop.name = org.apache.hadoop
+logger.hadoop.level = WARN
+
+logger.s3a.name = org.apache.hadoop.fs.s3a
+logger.s3a.level = WARN
+
+logger.parquet.name = org.apache.parquet
+logger.parquet.level = WARN
+
+logger.jetty.name = org.eclipse.jetty
+logger.jetty.level = ERROR
+
+logger.netty.name = io.netty
+logger.netty.level = ERROR
+
+logger.k8s.name = org.apache.spark.scheduler.cluster.k8s
+logger.k8s.level = WARN
+
+logger.k8sclient.name = io.fabric8.kubernetes.client
+logger.k8sclient.level = WARN
+
+logger.aws.name = software.amazon.awssdk
+logger.aws.level = WARN
+
+logger.awsold.name = com.amazonaws
+logger.awsold.level = WARN
