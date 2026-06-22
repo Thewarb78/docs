@@ -1,3 +1,5 @@
-nginx -V 2>&1
-file $(which nginx)
-readelf -S $(which nginx) | grep debug
+kubectl explain gatewayparameters.spec --api-version=gateway.kgateway.dev/v1alpha1
+
+kubectl explain gatewayparameters.spec.kube --api-version=gateway.kgateway.dev/v1alpha1
+
+kubectl explain gatewayparameters.spec.kube.envoyContainer --api-version=gateway.kgateway.dev/v1alpha1
