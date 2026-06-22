@@ -1,2 +1,1 @@
-find $SPARK_HOME/jars -name "*.jar" \
--exec sh -c 'jar tf "$1" 2>/dev/null | grep -q "org/slf4j/impl/StaticLoggerBinder.class" && echo "$1"' _ {} \;
+kubectl -n spark port-forward svc/spark-history-server 18080:18080
