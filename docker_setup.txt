@@ -1,55 +1,18 @@
-status = error
-name = SparkPlatformLogConfig
+# Reduce common Hadoop startup noise
 
-appender.console.type = Console
-appender.console.name = ConsoleAppender
-appender.console.target = SYSTEM_ERR
-appender.console.layout.type = PatternLayout
-appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}: %m%n
-
-rootLogger.level = WARN
-rootLogger.appenderRefs = console
-rootLogger.appenderRef.console.ref = ConsoleAppender
-
-# Spark core
-logger.spark.name = org.apache.spark
-logger.spark.level = WARN
-
-# Hadoop
-logger.hadoop.name = org.apache.hadoop
-logger.hadoop.level = WARN
-
-# S3A
-logger.s3a.name = org.apache.hadoop.fs.s3a
-logger.s3a.level = WARN
-
-# AWS SDK v1
-logger.awsv1.name = com.amazonaws
-logger.awsv1.level = WARN
-
-# AWS SDK v2
-logger.awsv2.name = software.amazon.awssdk
-logger.awsv2.level = WARN
-
-# Suppress common useless startup warnings
 logger.native.name = org.apache.hadoop.util.NativeCodeLoader
 logger.native.level = ERROR
 
 logger.metrics.name = org.apache.hadoop.metrics2
 logger.metrics.level = ERROR
 
-# K8s client
-logger.fabric8.name = io.fabric8.kubernetes.client
-logger.fabric8.level = WARN
+# Suppress S3A Syncable warning
 
-# Jetty/Netty noise
-logger.jetty.name = org.eclipse.jetty
-logger.jetty.level = ERROR
+logger.s3ablock.name = org.apache.hadoop.fs.s3a.S3ABlockOutputStream
+logger.s3ablock.level = ERROR
 
-logger.netty.name = io.netty
-logger.netty.level = ERROR
+# Kubernetes executor lifecycle
 
-# Executor lifecycle - KEEP THESE
 logger.k8sbackend.name = org.apache.spark.scheduler.cluster.k8s.KubernetesClusterSchedulerBackend
 logger.k8sbackend.level = INFO
 
@@ -61,3 +24,14 @@ logger.executorlifecycle.level = INFO
 
 logger.scheduler.name = org.apache.spark.scheduler.TaskSchedulerImpl
 logger.scheduler.level = INFO
+
+# Less noise from infrastructure libraries
+
+logger.fabric8.name = io.fabric8.kubernetes.client
+logger.fabric8.level = WARN
+
+logger.jetty.name = org.eclipse.jetty
+logger.jetty.level = ERROR
+
+logger.netty.name = io.netty
+logger.netty.level = ERROR
