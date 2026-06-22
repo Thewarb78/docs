@@ -2,41 +2,62 @@ status = error
 name = SparkPlatformLogConfig
 
 appender.console.type = Console
-appender.console.name = Console
+appender.console.name = ConsoleAppender
 appender.console.target = SYSTEM_ERR
 appender.console.layout.type = PatternLayout
 appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}: %m%n
 
 rootLogger.level = WARN
 rootLogger.appenderRefs = console
-rootLogger.appenderRef.console.ref = Console
+rootLogger.appenderRef.console.ref = ConsoleAppender
 
+# Spark core
 logger.spark.name = org.apache.spark
 logger.spark.level = WARN
 
+# Hadoop
 logger.hadoop.name = org.apache.hadoop
 logger.hadoop.level = WARN
 
+# S3A
 logger.s3a.name = org.apache.hadoop.fs.s3a
 logger.s3a.level = WARN
 
-logger.parquet.name = org.apache.parquet
-logger.parquet.level = WARN
+# AWS SDK v1
+logger.awsv1.name = com.amazonaws
+logger.awsv1.level = WARN
 
+# AWS SDK v2
+logger.awsv2.name = software.amazon.awssdk
+logger.awsv2.level = WARN
+
+# Suppress common useless startup warnings
+logger.native.name = org.apache.hadoop.util.NativeCodeLoader
+logger.native.level = ERROR
+
+logger.metrics.name = org.apache.hadoop.metrics2
+logger.metrics.level = ERROR
+
+# K8s client
+logger.fabric8.name = io.fabric8.kubernetes.client
+logger.fabric8.level = WARN
+
+# Jetty/Netty noise
 logger.jetty.name = org.eclipse.jetty
 logger.jetty.level = ERROR
 
 logger.netty.name = io.netty
 logger.netty.level = ERROR
 
-logger.k8s.name = org.apache.spark.scheduler.cluster.k8s
-logger.k8s.level = WARN
+# Executor lifecycle - KEEP THESE
+logger.k8sbackend.name = org.apache.spark.scheduler.cluster.k8s.KubernetesClusterSchedulerBackend
+logger.k8sbackend.level = INFO
 
-logger.k8sclient.name = io.fabric8.kubernetes.client
-logger.k8sclient.level = WARN
+logger.executoralloc.name = org.apache.spark.scheduler.cluster.k8s.ExecutorPodsAllocator
+logger.executoralloc.level = INFO
 
-logger.aws.name = software.amazon.awssdk
-logger.aws.level = WARN
+logger.executorlifecycle.name = org.apache.spark.scheduler.cluster.k8s.ExecutorPodsLifecycleManager
+logger.executorlifecycle.level = INFO
 
-logger.awsold.name = com.amazonaws
-logger.awsold.level = WARN
+logger.scheduler.name = org.apache.spark.scheduler.TaskSchedulerImpl
+logger.scheduler.level = INFO
