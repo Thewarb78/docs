@@ -1,8 +1,2 @@
-kubectl get gatewayparameters -A
-kubectl describe gatewayparameters <name> -n <namespace>
-
-kubectl explain gatewayparameters.spec --api-version=gateway.kgateway.dev/v1alpha1
-
-kubectl get envoyproxy -A
-kubectl get proxy -A
-kubectl get kgateway -A
+kubectl auth can-i create daemonset -n sp
+kubectl auth can-i use podsecuritypolicy -n sp
