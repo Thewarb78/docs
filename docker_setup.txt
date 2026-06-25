@@ -1,5 +1,2 @@
-import sys
-
-argument = sys.argv[1]
-
-print(argument)
+kubectl get pods -n <ns> -l spark-role=executor \
+  --show-labels
