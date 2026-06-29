@@ -1,2 +1,1 @@
-kubectl get pods -n <ns> -l spark-role=executor \
-  --show-labels
+wget https://nginx.org/download/nginx-1.30.0.tar.gz
