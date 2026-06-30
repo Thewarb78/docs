@@ -1,1 +1,1 @@
-wget https://nginx.org/download/nginx-1.30.0.tar.gz
+find / -type f -name nginx 2>/dev/null
