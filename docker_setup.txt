@@ -1,1 +1,1 @@
-find / -type f -name nginx 2>/dev/null
+%windir%\system32\inetsrv\appcmd.exe set config /section:system.webServer/fastCgi /+"[fullPath='C:\Python311\python.exe',arguments='C:\Python311\Lib\site-packages\wfastcgi.py']" /commit:apphost
