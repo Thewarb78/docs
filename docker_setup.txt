@@ -1,1 +1,25 @@
-%windir%\system32\inetsrv\appcmd.exe set config /section:system.webServer/fastCgi /+"[fullPath='C:\Python311\python.exe',arguments='C:\Python311\Lib\site-packages\wfastcgi.py']" /commit:apphost
+cluster: data-dev
+
+secrets:
+  - name: ttt
+    rffr:
+      path: Shared
+    namespaces:
+      - data-dev
+      - -dev
+      - -dev
+
+  - name: smtp-secret
+    cy:
+      path: Shared/SMTP
+    namespaces:
+      - data-dev
+      - da-dev
+
+  - name: docker-pull-secret
+    type: kubernetes.io/dockerconfigjson
+    cy:
+      path: Shared/Docker
+    namespaces:
+      - data-dev
+      - s-dev
