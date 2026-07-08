@@ -42,3 +42,10 @@
 
   tags:
     - filebeat_enable
+
+- name: Force kill Filebeat process
+  ansible.windows.win_shell: |
+    $p = Get-Process -Name filebeat -ErrorAction SilentlyContinue
+    if ($p) {
+        Stop-Process -Id $p.Id -Force
+    }
