@@ -1,3 +1,1 @@
-curl -s --show-error --location \
-  --request GET 'https://argocd/api/v1/clusters/<url-encoded-k8sClusterUrl>' \
-  --header 'Authorization: Bearer <argoCDServiceAccountToken>'
+kubectl -n <namespace> port-forward pod/<pod-name> 18080:18080
