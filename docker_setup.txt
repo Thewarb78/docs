@@ -1,1 +1,44 @@
-kubectl -n <namespace> port-forward pod/<pod-name> 18080:18080
+- name: Check Filebeat service
+  block:
+    - name: Get Filebeat service status
+      ansible.windows.win_service:
+        name: filebeat
+      register: filebeat_service
+
+    - name: Show Filebeat status
+      ansible.builtin.debug:
+        msg: "Filebeat service state: {{ filebeat_service.state }}"
+
+  tags:
+    - filebeat_status
+
+- name: Stop and disable Filebeat
+  block:
+    - name: Stop Filebeat service
+      ansible.windows.win_service:
+        name: filebeat
+        state: stopped
+
+    - name: Disable Filebeat service
+      ansible.windows.win_service:
+        name: filebeat
+        start_mode: disabled
+
+  tags:
+    - filebeat_disable
+
+
+- name: Enable and start Filebeat
+  block:
+    - name: Enable Filebeat service
+      ansible.windows.win_service:
+        name: filebeat
+        start_mode: auto
+
+    - name: Start Filebeat service
+      ansible.windows.win_service:
+        name: filebeat
+        state: started
+
+  tags:
+    - filebeat_enable
