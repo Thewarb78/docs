@@ -1,41 +1,15 @@
-pipeline {
-  agent any
+def resolvedValue
 
-  stages {
-    stage('Build cs.xml') {
-      steps {
-        script {
-          def cfg = readYaml file: 'config/dev.yaml'
-
-          def xml = '''<?xml version="1.0" encoding="UTF-8"?>
-<configuration>
-'''
-
-          cfg.properties.each { prop ->
-            if (!prop.name) {
-              error "Found property without a name"
+            if (prop.containsKey('value')) {
+              resolvedValue = prop.value
+            } else if (prop.containsKey('c')) {
+              resolvedValue = thefunc(
+                ckey:  cfg.,
+                ckcert: cfg.c,
+                appid:        cfg.cyb,
+                fe:         cfg.e,
+                object:       prop.c_object
+              )
+            } else {
+              error "Property ${prop.name} has neither value nor c"
             }
-
-            if (!prop.containsKey('value')) {
-              error "Property ${prop.name} has no value"
-            }
-
-            xml += """
-  <property>
-    <name>${prop.name}</name>
-    <value>${prop.value}</value>
-  </property>
-"""
-          }
-
-          xml += '''</configuration>
-'''
-
-          writeFile file: 'cs.xml', text: xml
-        }
-
-        archiveArtifacts artifacts: 'cs.xml'
-      }
-    }
-  }
-}
