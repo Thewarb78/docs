@@ -1,51 +1,18 @@
-- name: Check Filebeat service
-  block:
-    - name: Get Filebeat service status
-      ansible.windows.win_service:
-        name: filebeat
-      register: filebeat_service
+cyberark:
+  app_id: 
+  safe: 
+  cert_credential_id: 
+  key_credential_id: 
 
-    - name: Show Filebeat status
-      ansible.builtin.debug:
-        msg: "Filebeat service state: {{ filebeat_service.state }}"
+properties:
+  - name: fs.s3a.access.key
+    cyberark_object: spark-s3-access-key
 
-  tags:
-    - filebeat_status
+  - name: fs.s3a.secret.key
+    cyberark_object: spark-s3-secret-key
 
-- name: Stop and disable Filebeat
-  block:
-    - name: Stop Filebeat service
-      ansible.windows.win_service:
-        name: filebeat
-        state: stopped
+  - name: fs.s3a.endpoint
+    value: https://s3.example.com
 
-    - name: Disable Filebeat service
-      ansible.windows.win_service:
-        name: filebeat
-        start_mode: disabled
-
-  tags:
-    - filebeat_disable
-
-
-- name: Enable and start Filebeat
-  block:
-    - name: Enable Filebeat service
-      ansible.windows.win_service:
-        name: filebeat
-        start_mode: auto
-
-    - name: Start Filebeat service
-      ansible.windows.win_service:
-        name: filebeat
-        state: started
-
-  tags:
-    - filebeat_enable
-
-- name: Force kill Filebeat process
-  ansible.windows.win_shell: |
-    $p = Get-Process -Name filebeat -ErrorAction SilentlyContinue
-    if ($p) {
-        Stop-Process -Id $p.Id -Force
-    }
+  - name: fs.s3a.path.style.access
+    value: true
