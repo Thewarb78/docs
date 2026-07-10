@@ -1,1 +1,11 @@
-[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String((kubectl get secret sp -n sp -o jsonpath='{.data.co\.xml}')))
+parameters {
+    choice(
+        name: 'CONFIG',
+        choices: [
+            'config/dev/c.yaml',
+            'config/stg/c.yaml',
+            'config/prd/c.yaml'
+        ],
+        description: 'Configuration file'
+    )
+}
