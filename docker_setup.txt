@@ -1,3 +1,1 @@
-kubectl get secret s \
-  -n spark-dev \
-  -o jsonpath='{.data.c\.xml}' | base64 -d
+[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String((kubectl get secret sp -n sp -o jsonpath='{.data.co\.xml}')))
