@@ -1,11 +1,9 @@
-parameters {
-    choice(
-        name: 'CONFIG',
-        choices: [
-            'config/dev/c.yaml',
-            'config/stg/c.yaml',
-            'config/prd/c.yaml'
-        ],
-        description: 'Configuration file'
-    )
-}
+properties:
+  - name: fs.s3a.endpoint
+    value: https://s3.example.com
+
+  - name: fs.s3a.path.style.access
+    value: true
+
+  - name: fs.s3a.acl.default
+    value: PublicRead
