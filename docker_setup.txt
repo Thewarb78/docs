@@ -1,15 +1,4 @@
-def resolvedValue
-
-            if (prop.containsKey('value')) {
-              resolvedValue = prop.value
-            } else if (prop.containsKey('c')) {
-              resolvedValue = thefunc(
-                ckey:  cfg.,
-                ckcert: cfg.c,
-                appid:        cfg.cyb,
-                fe:         cfg.e,
-                object:       prop.c_object
-              )
-            } else {
-              error "Property ${prop.name} has neither value nor c"
-            }
+namespaces:
+  - dev
+  - team-a
+  - team-b
