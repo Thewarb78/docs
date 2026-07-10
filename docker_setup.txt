@@ -1,4 +1,8 @@
-namespaces:
-  - dev
-  - team-a
-  - team-b
+cfg.namespaces.each { ns ->
+    sh """
+      kubectl create secret generic nameofit \
+        --namespace ${ns} \
+        --from-file=c.xml=c.xml \
+        --dry-run=client -o yaml | kubectl apply -f -
+    """
+}
