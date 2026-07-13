@@ -1,3 +1,11 @@
-for deployment in \$(kubectl get deployment --namespace ${namespace} \
-
-kubectl rollout status "\$deployment" \
+kubectl exec \
+    "$pod" \
+    -n "${namespace}" \
+    --kubeconfig "${common.k8s_cluster}-kubeconfig" \
+    -- bash -c '
+        pwd
+        ls -l
+        ss \
+            --master ://... \
+            ...
+    '
