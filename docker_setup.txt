@@ -1,2 +1,8 @@
-def configFile = "env/${params.ENVIRONMENT}/vars/.yaml"
-def cfg = readYaml file: configFile
+parameters {
+
+    string(
+        name: 'NAMESPACE',
+        defaultValue: '',
+        description: 'Namespace to restart'
+    )
+}
