@@ -1,13 +1,3 @@
-sh '''
-    set +x
+for deployment in \$(kubectl get deployment --namespace ${namespace} \
 
-    kubectl rollout restart deployment \
-        --namespace "${NAMESPACE}" \
-        --all
-
-    for deployment in $(kubectl get deployment -n "${NAMESPACE}" -o name); do
-        kubectl rollout status "$deployment" \
-            --namespace "${NAMESPACE}" \
-            --timeout=5m
-    done
-'''
+kubectl rollout status "\$deployment" \
