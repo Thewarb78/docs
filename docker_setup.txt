@@ -1,1 +1,13 @@
-def namespace = params.NAMESPACE.trim()
+sh '''
+    set +x
+
+    kubectl rollout restart deployment \
+        --namespace "${NAMESPACE}" \
+        --all
+
+    for deployment in $(kubectl get deployment -n "${NAMESPACE}" -o name); do
+        kubectl rollout status "$deployment" \
+            --namespace "${NAMESPACE}" \
+            --timeout=5m
+    done
+'''
