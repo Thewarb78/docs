@@ -1,8 +1,1 @@
-parameters {
-
-    string(
-        name: 'NAMESPACE',
-        defaultValue: '',
-        description: 'Namespace to restart'
-    )
-}
+def namespace = params.NAMESPACE.trim()
