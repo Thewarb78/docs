@@ -1,9 +1,2 @@
-properties:
-  - name: fs.s3a.endpoint
-    value: https://s3.example.com
-
-  - name: fs.s3a.path.style.access
-    value: true
-
-  - name: fs.s3a.acl.default
-    value: PublicRead
+def configFile = "env/${params.ENVIRONMENT}/vars/.yaml"
+def cfg = readYaml file: configFile
