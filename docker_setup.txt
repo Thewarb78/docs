@@ -1,14 +1,10 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: spark-defaults
-data:
-  spark-defaults.conf: |
-    spark.master                         k8s://https://kubernetes.default.svc
-    spark.submit.deployMode              client
-    spark.kubernetes.namespace           spark-dev
-    spark.eventLog.enabled               true
-    spark.eventLog.dir                   s3a://dev-spark-events/
-    spark.executor.instances             4
-    spark.executor.memory                8g
-    spark.executor.cores                 4
+volumes:
+  - name: spark-defaults
+    configMap:
+      name: spark-defaults
+
+volumeMounts:
+  - name: spark-defaults
+    mountPath: /opt/spark/conf/spark-defaults.conf
+    subPath: spark-defaults.conf
+    readOnly: true
