@@ -1,6 +1,21 @@
+def secret1 = ...
+def secret2 = ...
+
 maskPasswords(
     varPasswordPairs: [
-        [password: user],
-        [password: password]
+        [password: secret1],
+        [password: secret2]
     ]
-)
+) {
+    withEnv([
+        "SECRET_1=${secret1}",
+        "SECRET_2=${secret2}"
+    ]) {
+        sh """
+            ...
+            # Use as shell environment variables:
+            # \${SECRET_1}
+            # \${SECRET_2}
+        """
+    }
+}
