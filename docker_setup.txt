@@ -1,10 +1,6 @@
-volumes:
-  - name: spark-defaults
-    configMap:
-      name: spark-defaults
-
-volumeMounts:
-  - name: spark-defaults
-    mountPath: /opt/spark/conf/spark-defaults.conf
-    subPath: spark-defaults.conf
-    readOnly: true
+maskPasswords(
+    varPasswordPairs: [
+        [password: user],
+        [password: password]
+    ]
+)
