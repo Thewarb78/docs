@@ -1,5 +1,1 @@
-from pyspark.sql import SparkSession
-
-spark = SparkSession.builder.appName("check-config").getOrCreate()
-
-print(spark.sparkContext._jsc.hadoopConfiguration().get("mapreduce.fileoutputcommitter.algorithm.version"))
+spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version 2
