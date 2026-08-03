@@ -1,6 +1,7 @@
-df.write.format("avro").mode("overwrite").save("s3a://bucket/tmpWriteAvroFile2")
-print("Avro write OK")
-
-df3 = spark.read.format("avro").load("s3a://bucket/tmpWriteAvroFile2")
-df3.show()
-print("Avro read OK")
+spark.sql.sources.commitProtocolClass
+spark.sql.parquet.output.committer.class
+mapreduce.fileoutputcommitter.algorithm.version
+mapreduce.fileoutputcommitter.cleanup.skipped
+mapreduce.fileoutputcommitter.cleanup-failures.ignored
+spark.sql.sources.partitionOverwriteMode
+spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version
