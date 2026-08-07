@@ -1,68 +1,61 @@
 pipeline {
     agent { label 'kubectl' }
 
-    parameters {
-        choice(name: 'ENVIRONMENT', choices: ['dev', 'stg', 'prd'], description: 'Target environment')
-        string(name: 'SECRET_FILTER', defaultValue: '', description: 'Optional: single secret name to sync. Blank = all')
-        string(name: 'NAMESPACE_FILTER', defaultValue: '', description: 'Optional: single namespace to target. Blank = all')
+    environment {
+        KUBECONFIG = "${WORKSPACE}/${shared.k8s_cluster}-kubeconfig"
     }
 
     stages {
-        stage('Load config') {
-            steps {
-                script {
-                    def config = readYaml file: "secrets/${params.ENVIRONMENT}.yaml"
-
-                    namespaces = config.managed_namespaces
-                    secrets    = config.secrets
-
-                    if (params.NAMESPACE_FILTER?.trim()) {
-                        namespaces = namespaces.findAll { it == params.NAMESPACE_FILTER.trim() }
-                        if (!namespaces) { error "Namespace not found in managed_namespaces: ${params.NAMESPACE_FILTER}" }
-                    }
-                    if (params.SECRET_FILTER?.trim()) {
-                        secrets = secrets.findAll { it.name == params.SECRET_FILTER.trim() }
-                        if (!secrets) { error "Secret not found in config: ${params.SECRET_FILTER}" }
-                    }
-
-                    echo "Namespaces: ${namespaces.join(', ')}"
-                    echo "Secrets: ${secrets.collect { it.name }.join(', ')}"
-                }
-            }
-        }
-
         stage('Sync secrets') {
             steps {
                 script {
-                    def failures = []
+                    def config = readYaml file: 'secrets/dev.yaml'
 
-                    secrets.each { secret ->
-                        def userKey = secret.keys?.username ?: 'username'
-                        def passKey = secret.keys?.password ?: 'password'
+                    def k8s_creds = cyberarkSecret('<pinniped-object>')
 
-                        withCredentials([cyberarkSecret(credentialsId: secret.cyberark_id,
-                                                        usernameVariable: 'CA_USER',
-                                                        passwordVariable: 'CA_PASS')]) {
-                            namespaces.each { ns ->
-                                try {
-                                    sh """
-                                        kubectl create secret generic '${secret.name}' \
-                                          --from-literal='${userKey}'="\${CA_USER}" \
-                                          --from-literal='${passKey}'="\${CA_PASS}" \
-                                          -n '${ns}' \
-                                          --dry-run=client -o yaml | kubectl apply -f -
-                                    """
-                                    echo "OK: ${secret.name} -> ${ns}"
-                                } catch (err) {
-                                    echo "FAILED: ${secret.name} -> ${ns}"
-                                    failures << "${secret.name} -> ${ns}"
+                    maskPasswords(varPasswordPairs: [
+                        [password: k8s_creds.Content]
+                    ]) {
+                        withEnv(["SECRET_1=${k8s_creds.UserName}",
+                                 "SECRET_2=${k8s_creds.Content}"]) {
+
+                            sh """
+                                set +x
+                                export PINNIPED_USERNAME="\${SECRET_1}"
+                                export PINNIPED_PASSWORD="\${SECRET_2}"
+
+                                generate-kubeconfig.sh -c ${shared.k8s_cluster} -n datahub -e \\
+                                    --kubeconfig ${shared.k8s_cluster}-kubeconfig
+
+                                kubectl get ns > /dev/null
+                            """
+
+                            config.secrets.each { secret ->
+                                def creds = cyberarkSecret(secret.cyberark_id)
+                                def userKey = secret.keys?.username ?: 'username'
+                                def passKey = secret.keys?.password ?: 'password'
+
+                                maskPasswords(varPasswordPairs: [
+                                    [password: creds.Content]
+                                ]) {
+                                    withEnv(["CA_USER=${creds.UserName}",
+                                             "CA_PASS=${creds.Content}",
+                                             "NAMESPACES=${config.managed_namespaces.join(' ')}"]) {
+
+                                        sh """
+                                            set +x
+                                            for ns in \${NAMESPACES}; do
+                                                kubectl create secret generic ${secret.name} \\
+                                                  --from-literal=${userKey}="\${CA_USER}" \\
+                                                  --from-literal=${passKey}="\${CA_PASS}" \\
+                                                  -n \${ns} \\
+                                                  --dry-run=client -o yaml | kubectl apply -f -
+                                            done
+                                        """
+                                    }
                                 }
                             }
                         }
-                    }
-
-                    if (failures) {
-                        error "Failed to sync ${failures.size()} secret/namespace pairs:\n  ${failures.join('\n  ')}"
                     }
                 }
             }
