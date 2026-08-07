@@ -1,1 +1,71 @@
-spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version 2
+pipeline {
+    agent { label 'kubectl' }
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'stg', 'prd'], description: 'Target environment')
+        string(name: 'SECRET_FILTER', defaultValue: '', description: 'Optional: single secret name to sync. Blank = all')
+        string(name: 'NAMESPACE_FILTER', defaultValue: '', description: 'Optional: single namespace to target. Blank = all')
+    }
+
+    stages {
+        stage('Load config') {
+            steps {
+                script {
+                    def config = readYaml file: "secrets/${params.ENVIRONMENT}.yaml"
+
+                    namespaces = config.managed_namespaces
+                    secrets    = config.secrets
+
+                    if (params.NAMESPACE_FILTER?.trim()) {
+                        namespaces = namespaces.findAll { it == params.NAMESPACE_FILTER.trim() }
+                        if (!namespaces) { error "Namespace not found in managed_namespaces: ${params.NAMESPACE_FILTER}" }
+                    }
+                    if (params.SECRET_FILTER?.trim()) {
+                        secrets = secrets.findAll { it.name == params.SECRET_FILTER.trim() }
+                        if (!secrets) { error "Secret not found in config: ${params.SECRET_FILTER}" }
+                    }
+
+                    echo "Namespaces: ${namespaces.join(', ')}"
+                    echo "Secrets: ${secrets.collect { it.name }.join(', ')}"
+                }
+            }
+        }
+
+        stage('Sync secrets') {
+            steps {
+                script {
+                    def failures = []
+
+                    secrets.each { secret ->
+                        def userKey = secret.keys?.username ?: 'username'
+                        def passKey = secret.keys?.password ?: 'password'
+
+                        withCredentials([cyberarkSecret(credentialsId: secret.cyberark_id,
+                                                        usernameVariable: 'CA_USER',
+                                                        passwordVariable: 'CA_PASS')]) {
+                            namespaces.each { ns ->
+                                try {
+                                    sh """
+                                        kubectl create secret generic '${secret.name}' \
+                                          --from-literal='${userKey}'="\${CA_USER}" \
+                                          --from-literal='${passKey}'="\${CA_PASS}" \
+                                          -n '${ns}' \
+                                          --dry-run=client -o yaml | kubectl apply -f -
+                                    """
+                                    echo "OK: ${secret.name} -> ${ns}"
+                                } catch (err) {
+                                    echo "FAILED: ${secret.name} -> ${ns}"
+                                    failures << "${secret.name} -> ${ns}"
+                                }
+                            }
+                        }
+                    }
+
+                    if (failures) {
+                        error "Failed to sync ${failures.size()} secret/namespace pairs:\n  ${failures.join('\n  ')}"
+                    }
+                }
+            }
+        }
+    }
+}
