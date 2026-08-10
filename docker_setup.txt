@@ -1,1 +1,13 @@
-kubectl get secret <name> -n <ns> -o jsonpath='{.type}'
+sh """
+    set +x
+    for ns in \${NAMESPACES}; do
+      kubectl create secret docker-registry ${secret.name} \\
+        --docker-server='${global.docker_arti_registry}' \\
+        --docker-username="\${CA_USER}" \\
+        --docker-password="\${CA_PASS}" \\
+        -n \${ns} \\
+        --dry-run=client -o yaml \\
+        --kubeconfig ${shared.k8s_cluster}-kubeconfig \\
+      | kubectl apply -f - --kubeconfig ${shared.k8s_cluster}-kubeconfig
+    done
+"""
