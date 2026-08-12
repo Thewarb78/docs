@@ -1,3 +1,116 @@
-$a = Invoke-RestMethod "http://<history>:18080/api/v1/applications?limit=1"
-$a[0].attempts[0].startTime
-$a[0].attempts[0].startTime.GetType().Name
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)][string]$HistoryServer,
+    [Parameter(Mandatory)][datetime]$Start,
+    [Parameter(Mandatory)][datetime]$End,
+    [int]$Limit = 500,
+    [switch]$IncludeConfig
+)
+
+$ErrorActionPreference = 'Stop'
+
+function ConvertTo-SparkDate {
+    param([datetime]$Value)
+    $Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fff") + "GMT"
+}
+
+function ConvertFrom-SparkDate {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $clean = $Value -replace 'GMT$', 'Z'
+    [datetime]$parsed = [datetime]::MinValue
+    if ([datetime]::TryParse(
+            $clean,
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor
+            [System.Globalization.DateTimeStyles]::AssumeUniversal,
+            [ref]$parsed)) {
+        return $parsed
+    }
+    return $null
+}
+
+$base    = $HistoryServer.TrimEnd('/')
+$minDate = ConvertTo-SparkDate $Start
+$maxDate = ConvertTo-SparkDate $End
+
+$listUrl = "$base/api/v1/applications?minDate=$minDate&maxDate=$maxDate&limit=$Limit"
+Write-Verbose "GET $listUrl"
+
+try   { $apps = Invoke-RestMethod -Uri $listUrl -Method Get }
+catch { throw "Failed to query history server: $($_.Exception.Message)" }
+
+if (-not $apps) { Write-Warning "No applications returned for that window."; return }
+
+Write-Host "Found $($apps.Count) application(s). Fetching executor detail..." -ForegroundColor Cyan
+
+$results = foreach ($app in $apps) {
+
+    $attempt   = $app.attempts | Select-Object -Last 1
+    $attemptId = $attempt.attemptId
+    $appPath   = if ($attemptId) { "$($app.id)/$attemptId" } else { $app.id }
+
+    Write-Host "  $($app.id)" -ForegroundColor DarkGray
+
+    $totalCores = $null; $execCount = $null
+    $allCores   = $null; $allCount  = $null
+    $coresMax   = $null; $execCores = $null; $execMemory = $null
+
+    try {
+        $executors = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/executors" -Method Get
+
+        $realExecs   = $executors | Where-Object { $_.id -ne 'driver' }
+        $activeExecs = $realExecs | Where-Object { $_.isActive }
+
+        $totalCores = ($activeExecs | Measure-Object -Property totalCores -Sum).Sum
+        $execCount  = ($activeExecs | Measure-Object).Count
+        $allCores   = ($realExecs   | Measure-Object -Property totalCores -Sum).Sum
+        $allCount   = ($realExecs   | Measure-Object).Count
+    }
+    catch { Write-Warning "Executor fetch failed for $($app.id): $($_.Exception.Message)" }
+
+    if ($IncludeConfig) {
+        try {
+            $env   = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/environment" -Method Get
+            $props = @{}
+            foreach ($p in $env.sparkProperties) { $props[$p[0]] = $p[1] }
+            $coresMax   = $props['spark.cores.max']
+            $execCores  = $props['spark.executor.cores']
+            $execMemory = $props['spark.executor.memory']
+        }
+        catch { Write-Warning "Environment fetch failed for $($app.id): $($_.Exception.Message)" }
+    }
+
+    $startTime = ConvertFrom-SparkDate $attempt.startTime
+    $endTime   = ConvertFrom-SparkDate $attempt.endTime
+    if ($endTime -and $endTime.Year -le 1970) { $endTime = $null }
+
+    $durationMin = if ($attempt.duration) { [math]::Round($attempt.duration / 60000, 1) } else { $null }
+
+    [pscustomobject]@{
+        AppId          = $app.id
+        Name           = $app.name
+        Start          = if ($startTime) { $startTime.ToLocalTime() } else { $null }
+        End            = if ($endTime)   { $endTime.ToLocalTime() }   else { $null }
+        DurationMin    = $durationMin
+        TotalCores     = $totalCores    # active executors only
+        Executors      = $execCount
+        CoresAllTime   = $allCores      # includes dead executors
+        ExecutorsAll   = $allCount
+        CoresMax       = $coresMax
+        ExecutorCores  = $execCores
+        ExecutorMemory = $execMemory
+        Running        = -not $attempt.completed
+    }
+}
+
+$sorted = $results | Sort-Object -Property CoresAllTime -Descending
+
+$sorted | Format-Table AppId, Name, Start, End, DurationMin, CoresAllTime, ExecutorsAll -AutoSize
+
+Write-Host ""
+Write-Host "Apps in window : $($sorted.Count)" -ForegroundColor Green
+Write-Host "Note: CoresAllTime counts every executor the app ever had, not" -ForegroundColor DarkGray
+Write-Host "necessarily concurrent. Compare Start/End for genuine overlap."   -ForegroundColor DarkGray
+
+$sorted
