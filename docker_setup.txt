@@ -1,2 +1,171 @@
-.\Get-SparkAppCores.ps1 -HistoryServer "http://sparkhistory:18080" `
-                        -Start "2026-08-12 01:00:00" -End "2026-08-12 02:30:00"
+<#
+.SYNOPSIS
+    Pulls Spark applications from the History Server REST API for a given window
+    and reports total executor cores granted per app.
+
+.EXAMPLE
+    .\Get-SparkAppCores.ps1 -HistoryServer "http://sparkhistory:18080" `
+                            -Start "2026-08-12 01:00:00" `
+                            -End   "2026-08-12 02:30:00"
+
+.EXAMPLE
+    # Include resolved spark.cores.max from each app's environment
+    .\Get-SparkAppCores.ps1 -HistoryServer "http://sparkhistory:18080" `
+                            -Start "2026-08-12 01:00:00" `
+                            -End   "2026-08-12 02:30:00" `
+                            -IncludeConfig | Export-Csv .\spark-window.csv -NoTypeInformation
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)]
+    [string]$HistoryServer,
+
+    [Parameter(Mandatory)]
+    [datetime]$Start,
+
+    [Parameter(Mandatory)]
+    [datetime]$End,
+
+    [int]$Limit = 500,
+
+    # Also fetch spark.cores.max / executor settings from the environment endpoint.
+    # Adds an extra HTTP call per app, so leave off for a first pass.
+    [switch]$IncludeConfig
+)
+
+$ErrorActionPreference = 'Stop'
+
+# The history server wants yyyy-MM-ddTHH:mm:ss.SSSz — note the literal 'GMT'.
+# Times in the API are UTC, so convert whatever was passed in.
+function ConvertTo-SparkDate {
+    param([datetime]$Value)
+    $Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fff") + "GMT"
+}
+
+# The API returns timestamps in the same "...646GMT" form it accepts.
+# [datetime] can't parse the literal GMT suffix, so strip it and treat as UTC.
+function ConvertFrom-SparkDate {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $clean = $Value -replace 'GMT$', ''
+    [datetime]$parsed = [datetime]::MinValue
+    if ([datetime]::TryParseExact(
+            $clean,
+            @('yyyy-MM-ddTHH:mm:ss.fff', 'yyyy-MM-ddTHH:mm:ss'),
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::AssumeUniversal -bor
+            [System.Globalization.DateTimeStyles]::AdjustToUniversal,
+            [ref]$parsed)) {
+        return $parsed
+    }
+    return $null
+}
+
+$base    = $HistoryServer.TrimEnd('/')
+$minDate = ConvertTo-SparkDate $Start
+$maxDate = ConvertTo-SparkDate $End
+
+$listUrl = "$base/api/v1/applications?minDate=$minDate&maxDate=$maxDate&limit=$Limit"
+Write-Verbose "GET $listUrl"
+
+try {
+    $apps = Invoke-RestMethod -Uri $listUrl -Method Get
+}
+catch {
+    throw "Failed to query history server: $($_.Exception.Message)"
+}
+
+if (-not $apps) {
+    Write-Warning "No applications returned for that window."
+    return
+}
+
+Write-Host "Found $($apps.Count) application(s). Fetching executor detail..." -ForegroundColor Cyan
+
+$results = foreach ($app in $apps) {
+
+    # Apps with retries have multiple attempts; take the last one.
+    $attempt   = $app.attempts | Select-Object -Last 1
+    $attemptId = $attempt.attemptId
+
+    # Path differs when an attemptId is present.
+    $appPath = if ($attemptId) { "$($app.id)/$attemptId" } else { $app.id }
+
+    $totalCores  = $null
+    $execCount   = $null
+    $coresMax    = $null
+    $execCores   = $null
+    $execMemory  = $null
+
+    try {
+        $executors = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/executors" -Method Get
+
+        # Exclude the driver entry or the total is inflated.
+        $realExecs  = $executors | Where-Object { $_.id -ne 'driver' }
+        $totalCores = ($realExecs | Measure-Object -Property totalCores -Sum).Sum
+        $execCount  = ($realExecs | Measure-Object).Count
+    }
+    catch {
+        Write-Warning "Executor fetch failed for $($app.id): $($_.Exception.Message)"
+    }
+
+    if ($IncludeConfig) {
+        try {
+            $env = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/environment" -Method Get
+
+            # sparkProperties comes back as an array of [key, value] pairs.
+            $props = @{}
+            foreach ($p in $env.sparkProperties) { $props[$p[0]] = $p[1] }
+
+            $coresMax   = $props['spark.cores.max']
+            $execCores  = $props['spark.executor.cores']
+            $execMemory = $props['spark.executor.memory']
+        }
+        catch {
+            Write-Warning "Environment fetch failed for $($app.id): $($_.Exception.Message)"
+        }
+    }
+
+    $startTime = ConvertFrom-SparkDate $attempt.startTime
+    $endTime   = ConvertFrom-SparkDate $attempt.endTime
+
+    # Running apps come back with an epoch-ish endTime; treat that as no end.
+    if ($endTime -and $endTime.Year -le 1970) { $endTime = $null }
+
+    $durationMin = if ($attempt.duration) {
+                       [math]::Round($attempt.duration / 60000, 1)
+                   } else { $null }
+
+    [pscustomobject]@{
+        AppId          = $app.id
+        Name           = $app.name
+        Start          = if ($startTime) { $startTime.ToLocalTime() } else { $null }
+        End            = if ($endTime)   { $endTime.ToLocalTime() }   else { $null }
+        DurationMin    = $durationMin
+        TotalCores     = $totalCores
+        Executors      = $execCount
+        CoresMax       = $coresMax
+        ExecutorCores  = $execCores
+        ExecutorMemory = $execMemory
+        Running        = -not $attempt.completed
+    }
+}
+
+# Biggest consumers first.
+$sorted = $results | Sort-Object -Property TotalCores -Descending
+
+$sorted | Format-Table AppId, Name, Start, DurationMin, TotalCores, Executors -AutoSize
+
+# Quick summary of what the window actually looked like.
+$sum = ($sorted | Measure-Object -Property TotalCores -Sum).Sum
+Write-Host ""
+Write-Host "Apps in window : $($sorted.Count)"       -ForegroundColor Green
+Write-Host "Sum of cores   : $sum (not concurrent — see overlap note)" -ForegroundColor Green
+Write-Host ""
+Write-Host "Note: the sum above counts every app in the window, not just those" -ForegroundColor DarkGray
+Write-Host "running simultaneously. Compare Start/End to find genuine overlap."  -ForegroundColor DarkGray
+
+# Emit objects so they can be piped to Export-Csv, Out-GridView etc.
+$sorted
+
