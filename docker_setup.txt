@@ -1,100 +1,35 @@
-#!/usr/bin/env python3
-"""Spark on K8s smoke test: write to a bucket, read it back, verify."""
-
-import os
-import sys
-import uuid
-
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-
-# --- overrides: set any of these to a literal to bypass the env var ---
-BUCKET = None            # e.g. "s3a://my-test-bucket/scratch"
-SERVICE_ACCOUNT = None   # e.g. "spark-driver"
-POD_IP = None            # e.g. "10.42.0.17"
-APP_NAME = None          # e.g. "spark-s3-smoke"
-EXECUTOR_MEMORY = None   # e.g. "2g"
-EXECUTOR_CORES = None    # e.g. "2"
-# ----------------------------------------------------------------------
-
-bucket = BUCKET or os.environ["BUCKET"]
-service_account = SERVICE_ACCOUNT or os.environ["SERVICE_ACCOUNT"]
-pod_ip = POD_IP or os.environ["POD_IP"]
-app_name = APP_NAME or os.environ.get("APP_NAME", "spark-s3-smoke")
-executor_memory = EXECUTOR_MEMORY or os.environ.get("EXECUTOR_MEMORY")
-executor_cores = EXECUTOR_CORES or os.environ.get("EXECUTOR_CORES")
-
-builder = (
-    SparkSession.builder
-    .appName(app_name)
-    .config("spark.submit.deployMode", "client")
-    .config("spark.kubernetes.authenticate.driver.serviceAccountName", service_account)
-    .config("spark.driver.host", pod_ip)
-)
-
-# Only set these if supplied, otherwise spark-defaults.conf stays in charge.
-if executor_memory:
-    builder = builder.config("spark.executor.memory", executor_memory)
-if executor_cores:
-    builder = builder.config("spark.executor.cores", str(executor_cores))
-
-spark = builder.getOrCreate()
-
-run_id = uuid.uuid4().hex[:8]
-path = f"{bucket.rstrip('/')}/_smoke/{run_id}"
-print(f"Spark {spark.version} | app {spark.sparkContext.applicationId}")
-print(f"target: {path}")
-print("executor.memory = "
-      f"{spark.conf.get('spark.executor.memory', '<unset>')} "
-      f"(env: {executor_memory or '-'})")
-print("executor.cores  = "
-      f"{spark.conf.get('spark.executor.cores', '<unset>')} "
-      f"(env: {executor_cores or '-'})")
-
-df = (
-    spark.range(1000)
-    .withColumn("part", (F.col("id") % 10).cast("int"))
-    .withColumn("payload", F.sha2(F.col("id").cast("string"), 256))
-    .withColumn("run_id", F.lit(run_id))
-)
-expected_count = df.count()
-expected_sum = df.agg(F.sum("id")).collect()[0][0]
-print(f"generated {expected_count} rows, sum(id)={expected_sum}")
-
-print("writing...")
-df.write.mode("overwrite").partitionBy("part").parquet(path)
-print("write complete")
-
-print("reading back...")
-back = spark.read.parquet(path)
-actual_count = back.count()
-actual_sum = back.agg(F.sum("id")).collect()[0][0]
-actual_runs = [r[0] for r in back.select("run_id").distinct().collect()]
-print(f"read {actual_count} rows, sum(id)={actual_sum}")
-back.groupBy("part").count().orderBy("part").show(10, truncate=False)
-
-failures = []
-if actual_count != expected_count:
-    failures.append(f"row count {actual_count} != {expected_count}")
-if actual_sum != expected_sum:
-    failures.append(f"sum(id) {actual_sum} != {expected_sum}")
-if actual_runs != [run_id]:
-    failures.append(f"unexpected run_id values: {actual_runs}")
-
-try:
-    jvm = spark.sparkContext._jvm
-    fs = jvm.org.apache.hadoop.fs.FileSystem.get(
-        jvm.java.net.URI(path), spark.sparkContext._jsc.hadoopConfiguration()
-    )
-    fs.delete(jvm.org.apache.hadoop.fs.Path(path), True)
-    print(f"cleaned up {path}")
-except Exception as exc:
-    print(f"WARN: cleanup failed: {exc}", file=sys.stderr)
-
-spark.stop()
-
-if failures:
-    for f in failures:
-        print(f"FAIL: {f}", file=sys.stderr)
-    sys.exit(1)
-print("PASS: write/read round trip verified")
+apiVersion: v1
+kind: Pod
+metadata:
+  name: spark-smoke
+  namespace: your-ns
+spec:
+  serviceAccountName: spark-driver
+  restartPolicy: Never
+  containers:
+    - name: driver
+      image: myreg/spark-pyspark-smoke:4.1.2-1
+      command: ["python3", "/apps/spark_s3_smoke.py"]
+      env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+        - name: APP_NAME
+          value: "spark-s3-smoke"
+        - name: BUCKET
+          value: "s3a://my-test-bucket/scratch"
+        - name: EXECUTOR_MEMORY
+          value: "2g"
+        - name: EXECUTOR_CORES
+          value: "2"
+      resources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+        limits:
+          memory: 2Gi
