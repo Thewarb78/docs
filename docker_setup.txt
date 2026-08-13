@@ -1,110 +1,148 @@
-[CmdletBinding()]
-param(
-    [Parameter(Mandatory)][string]$HistoryServer,
-    [Parameter(Mandatory)][datetime]$Start,
-    [Parameter(Mandatory)][datetime]$End,
-    [int]$Limit = 2000,
-    [switch]$IncludeConfig
-)
+#!/usr/bin/env python3
+"""
+Spark on Kubernetes smoke test.
 
-$ErrorActionPreference = 'Stop'
+Writes a small dataframe to object storage, reads it back, verifies it matches.
+Exits non-zero on any mismatch so CI / a failed pod status is meaningful.
 
-function ConvertTo-SparkDate {
-    param([datetime]$Value)
-    $Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fff") + "GMT"
-}
+Environment:
+  BUCKET           required, e.g. "my-test-bucket" or "s3a://my-test-bucket/prefix"
+  SERVICE_ACCOUNT  required, service account the driver uses to create executors
+  POD_IP           required, driver pod IP injected via fieldRef
+  APP_NAME         optional, default "spark-s3-smoke"
+  KEEP_DATA        optional, "true" to skip cleanup
+"""
 
-function ConvertFrom-SparkDate {
-    param([string]$Value)
-    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    $clean = $Value -replace 'GMT$', 'Z'
-    [datetime]$parsed = [datetime]::MinValue
-    if ([datetime]::TryParse(
-            $clean,
-            [System.Globalization.CultureInfo]::InvariantCulture,
-            [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor
-            [System.Globalization.DateTimeStyles]::AssumeUniversal,
-            [ref]$parsed)) {
-        return $parsed
-    }
-    return $null
-}
+import os
+import sys
+import uuid
+from datetime import datetime, timezone
 
-$base    = $HistoryServer.TrimEnd('/')
-$minDate = ConvertTo-SparkDate $Start
-$maxDate = ConvertTo-SparkDate $End
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
 
-$listUrl = "$base/api/v1/applications?minDate=$minDate&maxDate=$maxDate&limit=$Limit"
-Write-Verbose "GET $listUrl"
 
-try   { $apps = Invoke-RestMethod -Uri $listUrl -Method Get }
-catch { throw "Failed to query history server: $($_.Exception.Message)" }
+def require_env(name):
+    val = os.environ.get(name)
+    if not val:
+        print(f"FATAL: {name} is not set", file=sys.stderr)
+        sys.exit(2)
+    return val
 
-if (-not $apps) { Write-Warning "No applications returned for that window."; return }
 
-Write-Host "Found $($apps.Count) application(s). Fetching executor detail..." -ForegroundColor Cyan
+def normalise_bucket(raw):
+    """Accept 'bucket', 'bucket/prefix', or a full s3a:// URI."""
+    raw = raw.rstrip("/")
+    if "://" in raw:
+        return raw
+    return f"s3a://{raw}"
 
-$i = 0
-foreach ($app in $apps) {
 
-    $i++
-    if ($i % 25 -eq 0) { Write-Host "  $i / $($apps.Count)" -ForegroundColor DarkGray }
+def build_session():
+    bucket_base = normalise_bucket(require_env("BUCKET"))
 
-    $attempt   = $app.attempts | Select-Object -Last 1
-    $attemptId = $attempt.attemptId
-    $appPath   = if ($attemptId) { "$($app.id)/$attemptId" } else { $app.id }
+    spark = (
+        SparkSession.builder
+        .appName(os.environ.get("APP_NAME", "spark-s3-smoke"))
+        .config("spark.submit.deployMode", "client")
+        .config("spark.kubernetes.authenticate.driver.serviceAccountName",
+                require_env("SERVICE_ACCOUNT"))
+        .config("spark.driver.host", require_env("POD_IP"))
+        .getOrCreate()
+    )
 
-    $totalCores = $null; $execCount = $null
-    $allCores   = $null; $allCount  = $null
-    $coresMax   = $null; $execCores = $null; $execMemory = $null
-    $dynAlloc   = $null
+    return spark, bucket_base
 
-    try {
-        $executors = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/executors" -Method Get
 
-        $realExecs   = $executors | Where-Object { $_.id -ne 'driver' }
-        $activeExecs = $realExecs | Where-Object { $_.isActive }
+def dump_relevant_conf(spark):
+    """Print the config that actually matters when this goes wrong."""
+    keys = [
+        "spark.master",
+        "spark.submit.deployMode",
+        "spark.driver.host",
+        "spark.driver.bindAddress",
+        "spark.kubernetes.namespace",
+        "spark.kubernetes.executor.podNamePrefix",
+        "spark.hadoop.fs.s3a.endpoint",
+        "spark.hadoop.fs.s3a.aws.credentials.provider",
+        "spark.hadoop.fs.s3a.path.style.access",
+        "spark.hadoop.fs.s3a.committer.name",
+        "spark.sql.sources.commitProtocolClass",
+        "spark.sql.parquet.output.committer.class",
+    ]
+    print("--- resolved config ---")
+    for k in keys:
+        print(f"  {k} = {spark.conf.get(k, '<unset>')}")
+    print("-----------------------")
 
-        $totalCores = ($activeExecs | Measure-Object -Property totalCores -Sum).Sum
-        $execCount  = ($activeExecs | Measure-Object).Count
-        $allCores   = ($realExecs   | Measure-Object -Property totalCores -Sum).Sum
-        $allCount   = ($realExecs   | Measure-Object).Count
-    }
-    catch { Write-Warning "Executor fetch failed for $($app.id): $($_.Exception.Message)" }
 
-    if ($IncludeConfig) {
-        try {
-            $envr  = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/environment" -Method Get
-            $props = @{}
-            foreach ($p in $envr.sparkProperties) { $props[$p[0]] = $p[1] }
-            $coresMax   = $props['spark.cores.max']
-            $execCores  = $props['spark.executor.cores']
-            $execMemory = $props['spark.executor.memory']
-            $dynAlloc   = $props['spark.dynamicAllocation.enabled']
-        }
-        catch { Write-Warning "Environment fetch failed for $($app.id): $($_.Exception.Message)" }
-    }
+def main():
+    spark, bucket_base = build_session()
+    sc = spark.sparkContext
 
-    $startTime = ConvertFrom-SparkDate $attempt.startTime
-    $endTime   = ConvertFrom-SparkDate $attempt.endTime
-    if ($endTime -and $endTime.Year -le 1970) { $endTime = $null }
+    run_id = uuid.uuid4().hex[:8]
+    path = f"{bucket_base}/_smoke/{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{run_id}"
 
-    $durationMin = if ($attempt.duration) { [math]::Round($attempt.duration / 60000, 2) } else { $null }
+    print(f"Spark {sc.version} | app {sc.applicationId}")
+    print(f"target path: {path}")
+    dump_relevant_conf(spark)
 
-    [pscustomobject]@{
-        AppId          = $app.id
-        Name           = $app.name
-        Start          = if ($startTime) { $startTime.ToLocalTime() } else { $null }
-        End            = if ($endTime)   { $endTime.ToLocalTime() }   else { $null }
-        DurationMin    = $durationMin
-        TotalCores     = $totalCores
-        Executors      = $execCount
-        CoresAllTime   = $allCores
-        ExecutorsAll   = $allCount
-        CoresMax       = $coresMax
-        ExecutorCores  = $execCores
-        ExecutorMemory = $execMemory
-        DynamicAlloc   = $dynAlloc
-        Running        = -not $attempt.completed
-    }
-}
+    rows = 1000
+    df = (
+        spark.range(rows)
+        .withColumn("bucket_of", (F.col("id") % 10).cast("int"))
+        .withColumn("payload", F.sha2(F.col("id").cast("string"), 256))
+        .withColumn("run_id", F.lit(run_id))
+    )
+
+    expected_count = df.count()
+    expected_sum = df.agg(F.sum("id")).collect()[0][0]
+    print(f"generated {expected_count} rows, sum(id)={expected_sum}")
+
+    # Write - partitioned so we exercise more than a single-file happy path.
+    print("writing...")
+    df.write.mode("overwrite").partitionBy("bucket_of").parquet(path)
+    print("write complete")
+
+    # Read back through a fresh plan; no cached dataframe reuse.
+    print("reading back...")
+    back = spark.read.parquet(path)
+    actual_count = back.count()
+    actual_sum = back.agg(F.sum("id")).collect()[0][0]
+    print(f"read {actual_count} rows, sum(id)={actual_sum}")
+
+    back.groupBy("bucket_of").count().orderBy("bucket_of").show(10, truncate=False)
+
+    failures = []
+    if actual_count != expected_count:
+        failures.append(f"row count {actual_count} != {expected_count}")
+    if actual_sum != expected_sum:
+        failures.append(f"sum(id) {actual_sum} != {expected_sum}")
+
+    distinct_runs = [r[0] for r in back.select("run_id").distinct().collect()]
+    if distinct_runs != [run_id]:
+        failures.append(f"unexpected run_id values: {distinct_runs}")
+
+    if os.environ.get("KEEP_DATA", "").lower() != "true":
+        try:
+            hadoop_conf = sc._jsc.hadoopConfiguration()
+            jvm = sc._jvm
+            uri = jvm.java.net.URI(path)
+            fs = jvm.org.apache.hadoop.fs.FileSystem.get(uri, hadoop_conf)
+            fs.delete(jvm.org.apache.hadoop.fs.Path(path), True)
+            print(f"cleaned up {path}")
+        except Exception as exc:  # cleanup failure shouldn't mask a passing test
+            print(f"WARN: cleanup failed: {exc}", file=sys.stderr)
+
+    spark.stop()
+
+    if failures:
+        for f in failures:
+            print(f"FAIL: {f}", file=sys.stderr)
+        sys.exit(1)
+
+    print("PASS: write/read round trip verified")
+
+
+if __name__ == "__main__":
+    main()
