@@ -1,2 +1,110 @@
-.\Get-SparkAppCores.ps1 -HistoryServer "..." -Start "..." -End "..." -IncludeConfig |
-  Export-Csv .\spark-window.csv -NoTypeInformation
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)][string]$HistoryServer,
+    [Parameter(Mandatory)][datetime]$Start,
+    [Parameter(Mandatory)][datetime]$End,
+    [int]$Limit = 2000,
+    [switch]$IncludeConfig
+)
+
+$ErrorActionPreference = 'Stop'
+
+function ConvertTo-SparkDate {
+    param([datetime]$Value)
+    $Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fff") + "GMT"
+}
+
+function ConvertFrom-SparkDate {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $clean = $Value -replace 'GMT$', 'Z'
+    [datetime]$parsed = [datetime]::MinValue
+    if ([datetime]::TryParse(
+            $clean,
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor
+            [System.Globalization.DateTimeStyles]::AssumeUniversal,
+            [ref]$parsed)) {
+        return $parsed
+    }
+    return $null
+}
+
+$base    = $HistoryServer.TrimEnd('/')
+$minDate = ConvertTo-SparkDate $Start
+$maxDate = ConvertTo-SparkDate $End
+
+$listUrl = "$base/api/v1/applications?minDate=$minDate&maxDate=$maxDate&limit=$Limit"
+Write-Verbose "GET $listUrl"
+
+try   { $apps = Invoke-RestMethod -Uri $listUrl -Method Get }
+catch { throw "Failed to query history server: $($_.Exception.Message)" }
+
+if (-not $apps) { Write-Warning "No applications returned for that window."; return }
+
+Write-Host "Found $($apps.Count) application(s). Fetching executor detail..." -ForegroundColor Cyan
+
+$i = 0
+foreach ($app in $apps) {
+
+    $i++
+    if ($i % 25 -eq 0) { Write-Host "  $i / $($apps.Count)" -ForegroundColor DarkGray }
+
+    $attempt   = $app.attempts | Select-Object -Last 1
+    $attemptId = $attempt.attemptId
+    $appPath   = if ($attemptId) { "$($app.id)/$attemptId" } else { $app.id }
+
+    $totalCores = $null; $execCount = $null
+    $allCores   = $null; $allCount  = $null
+    $coresMax   = $null; $execCores = $null; $execMemory = $null
+    $dynAlloc   = $null
+
+    try {
+        $executors = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/executors" -Method Get
+
+        $realExecs   = $executors | Where-Object { $_.id -ne 'driver' }
+        $activeExecs = $realExecs | Where-Object { $_.isActive }
+
+        $totalCores = ($activeExecs | Measure-Object -Property totalCores -Sum).Sum
+        $execCount  = ($activeExecs | Measure-Object).Count
+        $allCores   = ($realExecs   | Measure-Object -Property totalCores -Sum).Sum
+        $allCount   = ($realExecs   | Measure-Object).Count
+    }
+    catch { Write-Warning "Executor fetch failed for $($app.id): $($_.Exception.Message)" }
+
+    if ($IncludeConfig) {
+        try {
+            $envr  = Invoke-RestMethod -Uri "$base/api/v1/applications/$appPath/environment" -Method Get
+            $props = @{}
+            foreach ($p in $envr.sparkProperties) { $props[$p[0]] = $p[1] }
+            $coresMax   = $props['spark.cores.max']
+            $execCores  = $props['spark.executor.cores']
+            $execMemory = $props['spark.executor.memory']
+            $dynAlloc   = $props['spark.dynamicAllocation.enabled']
+        }
+        catch { Write-Warning "Environment fetch failed for $($app.id): $($_.Exception.Message)" }
+    }
+
+    $startTime = ConvertFrom-SparkDate $attempt.startTime
+    $endTime   = ConvertFrom-SparkDate $attempt.endTime
+    if ($endTime -and $endTime.Year -le 1970) { $endTime = $null }
+
+    $durationMin = if ($attempt.duration) { [math]::Round($attempt.duration / 60000, 2) } else { $null }
+
+    [pscustomobject]@{
+        AppId          = $app.id
+        Name           = $app.name
+        Start          = if ($startTime) { $startTime.ToLocalTime() } else { $null }
+        End            = if ($endTime)   { $endTime.ToLocalTime() }   else { $null }
+        DurationMin    = $durationMin
+        TotalCores     = $totalCores
+        Executors      = $execCount
+        CoresAllTime   = $allCores
+        ExecutorsAll   = $allCount
+        CoresMax       = $coresMax
+        ExecutorCores  = $execCores
+        ExecutorMemory = $execMemory
+        DynamicAlloc   = $dynAlloc
+        Running        = -not $attempt.completed
+    }
+}
