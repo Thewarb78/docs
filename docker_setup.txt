@@ -1,148 +1,83 @@
 #!/usr/bin/env python3
-"""
-Spark on Kubernetes smoke test.
-
-Writes a small dataframe to object storage, reads it back, verifies it matches.
-Exits non-zero on any mismatch so CI / a failed pod status is meaningful.
-
-Environment:
-  BUCKET           required, e.g. "my-test-bucket" or "s3a://my-test-bucket/prefix"
-  SERVICE_ACCOUNT  required, service account the driver uses to create executors
-  POD_IP           required, driver pod IP injected via fieldRef
-  APP_NAME         optional, default "spark-s3-smoke"
-  KEEP_DATA        optional, "true" to skip cleanup
-"""
+"""Spark on K8s smoke test: write to a bucket, read it back, verify."""
 
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
+# --- overrides: set any of these to a literal to bypass the env var ---
+BUCKET = None            # e.g. "s3a://my-test-bucket/scratch"
+SERVICE_ACCOUNT = None   # e.g. "spark-driver"
+POD_IP = None            # e.g. "10.42.0.17"
+APP_NAME = None          # e.g. "spark-s3-smoke"
+# ----------------------------------------------------------------------
 
-def require_env(name):
-    val = os.environ.get(name)
-    if not val:
-        print(f"FATAL: {name} is not set", file=sys.stderr)
-        sys.exit(2)
-    return val
+bucket = BUCKET or os.environ["BUCKET"]
+service_account = SERVICE_ACCOUNT or os.environ["SERVICE_ACCOUNT"]
+pod_ip = POD_IP or os.environ["POD_IP"]
+app_name = APP_NAME or os.environ.get("APP_NAME", "spark-s3-smoke")
 
+spark = (
+    SparkSession.builder
+    .appName(app_name)
+    .config("spark.submit.deployMode", "client")
+    .config("spark.kubernetes.authenticate.driver.serviceAccountName", service_account)
+    .config("spark.driver.host", pod_ip)
+    .getOrCreate()
+)
 
-def normalise_bucket(raw):
-    """Accept 'bucket', 'bucket/prefix', or a full s3a:// URI."""
-    raw = raw.rstrip("/")
-    if "://" in raw:
-        return raw
-    return f"s3a://{raw}"
+run_id = uuid.uuid4().hex[:8]
+path = f"{bucket.rstrip('/')}/_smoke/{run_id}"
+print(f"Spark {spark.version} | app {spark.sparkContext.applicationId}")
+print(f"target: {path}")
 
+df = (
+    spark.range(1000)
+    .withColumn("part", (F.col("id") % 10).cast("int"))
+    .withColumn("payload", F.sha2(F.col("id").cast("string"), 256))
+    .withColumn("run_id", F.lit(run_id))
+)
+expected_count = df.count()
+expected_sum = df.agg(F.sum("id")).collect()[0][0]
+print(f"generated {expected_count} rows, sum(id)={expected_sum}")
 
-def build_session():
-    bucket_base = normalise_bucket(require_env("BUCKET"))
+print("writing...")
+df.write.mode("overwrite").partitionBy("part").parquet(path)
+print("write complete")
 
-    spark = (
-        SparkSession.builder
-        .appName(os.environ.get("APP_NAME", "spark-s3-smoke"))
-        .config("spark.submit.deployMode", "client")
-        .config("spark.kubernetes.authenticate.driver.serviceAccountName",
-                require_env("SERVICE_ACCOUNT"))
-        .config("spark.driver.host", require_env("POD_IP"))
-        .getOrCreate()
+print("reading back...")
+back = spark.read.parquet(path)
+actual_count = back.count()
+actual_sum = back.agg(F.sum("id")).collect()[0][0]
+actual_runs = [r[0] for r in back.select("run_id").distinct().collect()]
+print(f"read {actual_count} rows, sum(id)={actual_sum}")
+back.groupBy("part").count().orderBy("part").show(10, truncate=False)
+
+failures = []
+if actual_count != expected_count:
+    failures.append(f"row count {actual_count} != {expected_count}")
+if actual_sum != expected_sum:
+    failures.append(f"sum(id) {actual_sum} != {expected_sum}")
+if actual_runs != [run_id]:
+    failures.append(f"unexpected run_id values: {actual_runs}")
+
+try:
+    jvm = spark.sparkContext._jvm
+    fs = jvm.org.apache.hadoop.fs.FileSystem.get(
+        jvm.java.net.URI(path), spark.sparkContext._jsc.hadoopConfiguration()
     )
+    fs.delete(jvm.org.apache.hadoop.fs.Path(path), True)
+    print(f"cleaned up {path}")
+except Exception as exc:
+    print(f"WARN: cleanup failed: {exc}", file=sys.stderr)
 
-    return spark, bucket_base
+spark.stop()
 
-
-def dump_relevant_conf(spark):
-    """Print the config that actually matters when this goes wrong."""
-    keys = [
-        "spark.master",
-        "spark.submit.deployMode",
-        "spark.driver.host",
-        "spark.driver.bindAddress",
-        "spark.kubernetes.namespace",
-        "spark.kubernetes.executor.podNamePrefix",
-        "spark.hadoop.fs.s3a.endpoint",
-        "spark.hadoop.fs.s3a.aws.credentials.provider",
-        "spark.hadoop.fs.s3a.path.style.access",
-        "spark.hadoop.fs.s3a.committer.name",
-        "spark.sql.sources.commitProtocolClass",
-        "spark.sql.parquet.output.committer.class",
-    ]
-    print("--- resolved config ---")
-    for k in keys:
-        print(f"  {k} = {spark.conf.get(k, '<unset>')}")
-    print("-----------------------")
-
-
-def main():
-    spark, bucket_base = build_session()
-    sc = spark.sparkContext
-
-    run_id = uuid.uuid4().hex[:8]
-    path = f"{bucket_base}/_smoke/{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{run_id}"
-
-    print(f"Spark {sc.version} | app {sc.applicationId}")
-    print(f"target path: {path}")
-    dump_relevant_conf(spark)
-
-    rows = 1000
-    df = (
-        spark.range(rows)
-        .withColumn("bucket_of", (F.col("id") % 10).cast("int"))
-        .withColumn("payload", F.sha2(F.col("id").cast("string"), 256))
-        .withColumn("run_id", F.lit(run_id))
-    )
-
-    expected_count = df.count()
-    expected_sum = df.agg(F.sum("id")).collect()[0][0]
-    print(f"generated {expected_count} rows, sum(id)={expected_sum}")
-
-    # Write - partitioned so we exercise more than a single-file happy path.
-    print("writing...")
-    df.write.mode("overwrite").partitionBy("bucket_of").parquet(path)
-    print("write complete")
-
-    # Read back through a fresh plan; no cached dataframe reuse.
-    print("reading back...")
-    back = spark.read.parquet(path)
-    actual_count = back.count()
-    actual_sum = back.agg(F.sum("id")).collect()[0][0]
-    print(f"read {actual_count} rows, sum(id)={actual_sum}")
-
-    back.groupBy("bucket_of").count().orderBy("bucket_of").show(10, truncate=False)
-
-    failures = []
-    if actual_count != expected_count:
-        failures.append(f"row count {actual_count} != {expected_count}")
-    if actual_sum != expected_sum:
-        failures.append(f"sum(id) {actual_sum} != {expected_sum}")
-
-    distinct_runs = [r[0] for r in back.select("run_id").distinct().collect()]
-    if distinct_runs != [run_id]:
-        failures.append(f"unexpected run_id values: {distinct_runs}")
-
-    if os.environ.get("KEEP_DATA", "").lower() != "true":
-        try:
-            hadoop_conf = sc._jsc.hadoopConfiguration()
-            jvm = sc._jvm
-            uri = jvm.java.net.URI(path)
-            fs = jvm.org.apache.hadoop.fs.FileSystem.get(uri, hadoop_conf)
-            fs.delete(jvm.org.apache.hadoop.fs.Path(path), True)
-            print(f"cleaned up {path}")
-        except Exception as exc:  # cleanup failure shouldn't mask a passing test
-            print(f"WARN: cleanup failed: {exc}", file=sys.stderr)
-
-    spark.stop()
-
-    if failures:
-        for f in failures:
-            print(f"FAIL: {f}", file=sys.stderr)
-        sys.exit(1)
-
-    print("PASS: write/read round trip verified")
-
-
-if __name__ == "__main__":
-    main()
+if failures:
+    for f in failures:
+        print(f"FAIL: {f}", file=sys.stderr)
+    sys.exit(1)
+print("PASS: write/read round trip verified")
