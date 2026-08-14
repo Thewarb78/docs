@@ -1,33 +1,53 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Workflow
+kind: WorkflowTemplate
 metadata:
-  generateName: spark-roundtrip-
-  namespace: your-argo-ns
+  name: spark-job
 spec:
+  entrypoint: run
+
+  # Fixed per namespace - this template is copied into each Argo namespace
+  # with the correct SA for that namespace.
   serviceAccountName: spark-driver
-  entrypoint: roundtrip
 
-  arguments:
-    parameters:
-      - name: app-name
-        value: "s3-roundtrip"
-      - name: bucket
-        value: "s3a://my-test-bucket/scratch"
-      - name: executor-memory
-        value: "2g"
-      - name: executor-cores
-        value: "2"
-
+  # Pods stick around until the workflow is cleaned up: an hour on success,
+  # a day on failure. No podGC, so logs stay available for that window.
   ttlStrategy:
     secondsAfterCompletion: 3600
     secondsAfterFailure: 86400
 
+  arguments:
+    parameters:
+      # --- required: only the dev knows these ---
+      - name: app-name
+      - name: bucket
+      - name: script
+
+      # --- optional: platform defaults, overridable ---
+      # Driver heap is 2g from spark-defaults. Pod memory must exceed it -
+      # JVM non-heap, the Python process and the Argo sidecar live in the gap.
+      # Raising pod memory alone won't give the JVM more heap; set
+      # SPARK_DRIVER_MEMORY too if a job needs it.
+      - name: driver-pod-memory
+        value: "3Gi"
+        enum: ["3Gi", "4Gi", "6Gi", "8Gi"]
+      - name: driver-cpu
+        value: "500m"
+        enum: ["500m", "1", "2"]
+      - name: executor-memory
+        value: "2g"
+        enum: ["1g", "2g", "4g"]
+      - name: executor-cores
+        value: "2"
+        enum: ["1", "2", "4"]
+
   templates:
-    - name: roundtrip
+    - name: run
       activeDeadlineSeconds: 900
       container:
-        image: myreg/spark-pyspark-smoke:4.1.2-1
-        command: ["python3", "/apps/s3_roundtrip.py"]
+        # Fixed: image pairs with the spark-defaults ConfigMap for this version.
+        image: myreg/spark-pyspark-base:4.1.2
+        imagePullPolicy: Always
+        command: ["python3", "{{workflow.parameters.script}}"]
         env:
           - name: APP_NAME
             value: "{{workflow.parameters.app-name}}"
@@ -43,13 +63,9 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.podIP
-          - name: SERVICE_ACCOUNT
-            valueFrom:
-              fieldRef:
-                fieldPath: spec.serviceAccountName
         resources:
           requests:
-            cpu: "1"
-            memory: 2Gi
+            cpu: "{{workflow.parameters.driver-cpu}}"
+            memory: "{{workflow.parameters.driver-pod-memory}}"
           limits:
-            memory: 2Gi
+            memory: "{{workflow.parameters.driver-pod-memory}}"
