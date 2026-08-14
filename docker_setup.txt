@@ -8,6 +8,8 @@ spec:
   # Fixed per namespace - this template is copied into each Argo namespace
   # with the correct SA, ConfigMap and Secret names for that namespace.
   serviceAccountName: spark-driver
+  imagePullSecrets:
+    - name: my-registry-cred
 
   # Pods stick around until the workflow is cleaned up: an hour on success,
   # a day on failure. No podGC, so logs stay available for that window.
@@ -59,7 +61,8 @@ spec:
                 memory: "{{workflow.parameters.driver-pod-memory}}"
 
       # Driver mounts only. Executors are created by Spark, not Argo -
-      # their mounts come from spark.kubernetes.executor.* config.
+      # their mounts and pull secrets come from spark.kubernetes.executor.*
+      # and spark.kubernetes.container.image.pullSecrets config.
       volumes:
         - name: spark-conf
           configMap:
