@@ -6,7 +6,7 @@ spec:
   entrypoint: run
 
   # Fixed per namespace - this template is copied into each Argo namespace
-  # with the correct SA for that namespace.
+  # with the correct SA, ConfigMap and Secret names for that namespace.
   serviceAccountName: spark-driver
 
   # Pods stick around until the workflow is cleaned up: an hour on success,
@@ -43,12 +43,39 @@ spec:
   templates:
     - name: run
       activeDeadlineSeconds: 900
+
+      # resources can't be templated inline - Quantity fields are schema
+      # validated at save time, before parameters are substituted.
+      # podSpecPatch is a plain string, applied at pod creation.
+      # "main" is the container name Argo assigns; it must match exactly.
+      podSpecPatch: |
+        containers:
+          - name: main
+            resources:
+              requests:
+                cpu: "{{workflow.parameters.driver-cpu}}"
+                memory: "{{workflow.parameters.driver-pod-memory}}"
+              limits:
+                memory: "{{workflow.parameters.driver-pod-memory}}"
+
+      # Driver mounts only. Executors are created by Spark, not Argo -
+      # their mounts come from spark.kubernetes.executor.* config.
+      volumes:
+        - name: spark-conf
+          configMap:
+            name: spark-defaults-4-1-2
+        - name: s3-creds
+          secret:
+            secretName: s3-credentials
+
       container:
-        # Fixed: image pairs with the spark-defaults ConfigMap for this version.
+        # Fixed: image tag pairs with the ConfigMap above.
         image: myreg/spark-pyspark-base:4.1.2
         imagePullPolicy: Always
         command: ["python3", "{{workflow.parameters.script}}"]
         env:
+          - name: SPARK_CONF_DIR
+            value: /opt/spark/conf
           - name: APP_NAME
             value: "{{workflow.parameters.app-name}}"
           - name: BUCKET
@@ -63,9 +90,17 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.podIP
+        volumeMounts:
+          - name: spark-conf
+            mountPath: /opt/spark/conf
+          - name: s3-creds
+            mountPath: /etc/secrets
+            readOnly: true
+
+        # Static fallback - podSpecPatch overrides these at runtime.
         resources:
           requests:
-            cpu: "{{workflow.parameters.driver-cpu}}"
-            memory: "{{workflow.parameters.driver-pod-memory}}"
+            cpu: "500m"
+            memory: "3Gi"
           limits:
-            memory: "{{workflow.parameters.driver-pod-memory}}"
+            memory: "3Gi"
