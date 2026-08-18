@@ -1,1 +1,12 @@
-kubectl get secrets -A | grep -i PATTERN
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: p
+  namespace: <your test ns>
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: <your class>
