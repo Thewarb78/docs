@@ -1,10 +1,1 @@
-# Search secret names across all namespaces
-$pattern = 'regcred'
-$secrets = (kubectl get secrets -A -o json | ConvertFrom-Json).items
-
-$secrets |
-  Where-Object { $_.metadata.name -match $pattern } |
-  Select-Object @{n='Namespace';e={$_.metadata.namespace}},
-                @{n='Name';e={$_.metadata.name}},
-                @{n='Type';e={$_.type}} |
-  Format-Table -AutoSize
+kubectl get secrets -A | grep -i PATTERN
