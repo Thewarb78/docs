@@ -2,16 +2,11 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: p
-  namespace: <your test ns>
+  namespace: <your ns>
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: blahblah
   resources:
     requests:
-      storage: 1Gi
-  storageClassName: <your class>
-
-
-- name: home-dev
-          persistentVolumeClaim:
-            claimName: p
+      storage: 10Gi
