@@ -1,3 +1,1 @@
-- name: home-dev
-          persistentVolumeClaim:
-            claimName: nameoftheclaim
+python\64\3.8.7\python.exe -c "import oracledb; print(oracledb.__version__)"
