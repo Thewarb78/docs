@@ -1,3 +1,3 @@
-D:\python\64\3.8.7\python.exe -c "import sys; print(sys.path)"
-echo %PYTHONPATH%
-dir D:\\oracledb
+"Process : " + [Environment]::GetEnvironmentVariable("PYTHONPATH","Process")
+"User    : " + [Environment]::GetEnvironmentVariable("PYTHONPATH","User")
+"Machine : " + [Environment]::GetEnvironmentVariable("PYTHONPATH","Machine")
