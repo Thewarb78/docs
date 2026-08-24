@@ -1,1 +1,1 @@
-ps aux | grep kubelet | tr ' ' '\n' | grep root-dir
+ps aux | grep [k]ubelet | grep -o '\-\-root-dir=[^ ]*'
