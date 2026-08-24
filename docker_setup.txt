@@ -1,6 +1,2 @@
-df -h                              # which filesystem is actually full
-du -xh --max-depth=1 /var/lib | sort -h    # top consumers
-
-du -sh /var/lib/kubelet/pods/*     # emptyDirs — your Spark shuffle lives here
-du -sh /var/lib/containerd         # images + writable layers
-du -sh /var/log/pods/*             # container logs
+sudo du -xh --max-depth=1 /data | sort -h
+sudo du -sh /data/containerd /data/kubernetes
