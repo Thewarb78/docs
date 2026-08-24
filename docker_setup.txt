@@ -1,2 +1,1 @@
-readlink -f /var/lib/kubelet
-df -h /var/lib/kubelet
+kubectl describe node <node> | grep -i ephemeral
