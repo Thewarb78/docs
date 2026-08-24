@@ -1,2 +1,2 @@
-sudo du -xh --max-depth=1 /data | sort -h
-sudo du -sh /data/containerd /data/kubernetes
+readlink -f /var/lib/kubelet
+df -h /var/lib/kubelet
