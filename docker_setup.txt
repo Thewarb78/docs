@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
     Gets PasswordLastSet for a single AD account via a Global Catalog.
+    Pure .NET / ADSI - no RSAT ActiveDirectory module required.
 
 .EXAMPLE
     .\Get-PasswordLastSet.ps1 jbloggs
@@ -13,7 +14,7 @@ param(
     [Alias('SamAccountName', 'User')]
     [string]$Identity,
 
-    # Scope the GC search to one domain partition. Omit = whole forest.
+    # Scope the GC search to one domain partition. Omit = forest root downwards.
     [string]$Domain,
 
     # Explicit GC host. Append :port to override, e.g. gc01:3269
@@ -25,79 +26,145 @@ param(
     [pscredential]$Credential
 )
 
-Import-Module ActiveDirectory -ErrorAction Stop
+Add-Type -AssemblyName System.DirectoryServices -ErrorAction SilentlyContinue
+
+# --- helpers ---------------------------------------------------------------
+function ConvertFrom-AdLargeInteger($Value) {
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [int64]) { return [int64]$Value }
+    if ($Value -is [string]) { return [int64]$Value }
+
+    # COM IADsLargeInteger - only turns up via DirectoryEntry, but handle it
+    $t = $Value.GetType()
+    $high = $t.InvokeMember('HighPart', 'GetProperty', $null, $Value, $null)
+    $low  = $t.InvokeMember('LowPart',  'GetProperty', $null, $Value, $null)
+    return (([int64]$high) -shl 32) -bor (([int64]$low) -band [int64]0xFFFFFFFF)
+}
+
+function Get-DomainFromDN([string]$Dn) {
+    (($Dn -split '(?<!\\),') |
+        Where-Object { $_ -match '^DC=' } |
+        ForEach-Object { $_.Substring(3) }) -join '.'
+}
 
 # --- locate a GC -----------------------------------------------------------
 if ($Server) {
     $gc = if ($Server -match ':\d+$') { $Server } else { '{0}:{1}' -f $Server, $Port }
 }
 else {
-    $discover = @{ Discover = $true; Service = 'GlobalCatalog'; ErrorAction = 'Stop' }
-    if ($Domain) { $discover['DomainName'] = $Domain }
-    $gcHost = @((Get-ADDomainController @discover).HostName)[0]
-    if (-not $gcHost) { throw "No Global Catalog found$(if($Domain){" for $Domain"})." }
+    try {
+        if ($Domain) {
+            $ctxArgs = @('Domain', $Domain)
+            if ($Credential) {
+                $ctxArgs += $Credential.UserName
+                $ctxArgs += $Credential.GetNetworkCredential().Password
+            }
+            $ctx = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext $ctxArgs
+            $forest = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($ctx).Forest
+        }
+        else {
+            $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
+        }
+        $gcHost = $forest.FindGlobalCatalog().Name
+    }
+    catch {
+        # Fall back to letting DNS/DC locator resolve the domain name itself
+        $fallback = if ($Domain) { $Domain } else { $env:USERDNSDOMAIN }
+        if (-not $fallback) { throw "Could not locate a Global Catalog: $($_.Exception.Message)" }
+        Write-Verbose "GC discovery failed, falling back to '$fallback'"
+        $gcHost = $fallback
+    }
     $gc = '{0}:{1}' -f $gcHost, $Port
 }
 Write-Verbose "GC: $gc"
 
-# --- search base: empty string = whole forest on a GC bind -----------------
-$searchBase = if ($Domain) { 'DC=' + ($Domain -split '\.' -join ',DC=') } else { '' }
-Write-Verbose "Base: '$searchBase'"
+# --- auth flags ------------------------------------------------------------
+$auth = [System.DirectoryServices.AuthenticationTypes]::Secure
+if ($Port -eq 3269) {
+    $auth = $auth -bor [System.DirectoryServices.AuthenticationTypes]::SecureSocketsLayer
+}
 
-# --- escape and build the filter ------------------------------------------
+function New-Root([string]$Path) {
+    if ($Credential) {
+        New-Object System.DirectoryServices.DirectoryEntry(
+            $Path, $Credential.UserName, $Credential.GetNetworkCredential().Password, $auth)
+    }
+    else {
+        New-Object System.DirectoryServices.DirectoryEntry($Path, $null, $null, $auth)
+    }
+}
+
+# --- work out the search base ---------------------------------------------
+if ($Domain) {
+    $baseDn = 'DC=' + ($Domain -split '\.' -join ',DC=')
+}
+else {
+    $rootDse = New-Root "LDAP://$gc/RootDSE"
+    try { $baseDn = [string]$rootDse.Properties['rootDomainNamingContext'][0] }
+    finally { $rootDse.Dispose() }
+    if (-not $baseDn) { throw "Could not read rootDomainNamingContext from $gc." }
+}
+Write-Verbose "Base: $baseDn"
+
+# --- escape and search -----------------------------------------------------
 $esc = $Identity -replace '\\', '\5c' -replace '\*', '\2a' `
                  -replace '\(', '\28' -replace '\)', '\29' -replace '/', '\2f'
 
 $filter = "(&(objectCategory=person)(objectClass=user)" +
           "(|(sAMAccountName=$esc)(userPrincipalName=$esc)(distinguishedName=$esc)))"
 
-$params = @{
-    LDAPFilter  = $filter
-    Server      = $gc
-    SearchBase  = $searchBase
-    SearchScope = 'Subtree'
-    Properties  = 'sAMAccountName', 'displayName', 'userPrincipalName',
-                  'pwdLastSet', 'userAccountControl', 'whenCreated'
-    ErrorAction = 'Stop'
-}
-if ($Credential) { $params['Credential'] = $Credential }
-
-$found = @(Get-ADUser @params)
-
-if ($found.Count -eq 0) {
-    Write-Warning "No account matching '$Identity' found via $gc."
-    return
-}
-if ($found.Count -gt 1) {
-    Write-Warning "$($found.Count) matches for '$Identity' across the forest - returning all. Use -Domain to narrow."
+$root     = New-Root "LDAP://$gc/$baseDn"
+$searcher = New-Object System.DirectoryServices.DirectorySearcher($root, $filter)
+$searcher.SearchScope = 'Subtree'
+$searcher.PageSize    = 100
+$searcher.SizeLimit   = 10
+foreach ($p in 'sAMAccountName', 'displayName', 'userPrincipalName',
+               'distinguishedName', 'pwdLastSet', 'userAccountControl', 'whenCreated') {
+    [void]$searcher.PropertiesToLoad.Add($p)
 }
 
-foreach ($u in $found) {
-    $uac = [int]$u.userAccountControl
-    $raw = $u.pwdLastSet
+try {
+    $results = @($searcher.FindAll())
 
-    if ($null -eq $raw -or [int64]$raw -eq 0) {
-        $pls = $null; $age = $null
+    if ($results.Count -eq 0) {
+        Write-Warning "No account matching '$Identity' found via $gc."
+        return
     }
-    else {
-        $pls = [datetime]::FromFileTimeUtc([int64]$raw).ToLocalTime()
-        $age = [math]::Round(((Get-Date) - $pls).TotalDays, 1)
+    if ($results.Count -gt 1) {
+        Write-Warning "$($results.Count) matches for '$Identity' - returning all. Use -Domain to narrow."
     }
 
-    [pscustomobject]@{
-        SamAccountName        = $u.sAMAccountName
-        DisplayName           = $u.displayName
-        UserPrincipalName     = $u.userPrincipalName
-        Domain                = (($u.DistinguishedName -split '(?<!\\),') |
-                                 Where-Object { $_ -match '^DC=' } |
-                                 ForEach-Object { $_.Substring(3) }) -join '.'
-        PasswordLastSet       = $pls
-        PasswordAgeDays       = $age
-        MustChangeAtNextLogon = ($null -ne $raw -and [int64]$raw -eq 0)
-        PasswordNeverExpires  = [bool]($uac -band 0x10000)
-        Enabled               = -not ($uac -band 0x0002)
-        WhenCreated           = $u.whenCreated
-        DistinguishedName     = $u.DistinguishedName
-        QueriedVia            = $gc
+    foreach ($r in $results) {
+        $p   = $r.Properties
+        $dn  = [string]$p['distinguishedname'][0]
+        $uac = [int]$p['useraccountcontrol'][0]
+        $raw = if ($p['pwdlastset'].Count) { ConvertFrom-AdLargeInteger $p['pwdlastset'][0] } else { $null }
+
+        if ($null -eq $raw -or $raw -eq 0) {
+            $pls = $null; $age = $null
+        }
+        else {
+            $pls = [datetime]::FromFileTimeUtc($raw).ToLocalTime()
+            $age = [math]::Round(((Get-Date) - $pls).TotalDays, 1)
+        }
+
+        [pscustomobject]@{
+            SamAccountName        = [string]$p['samaccountname'][0]
+            DisplayName           = if ($p['displayname'].Count) { [string]$p['displayname'][0] } else { $null }
+            UserPrincipalName     = if ($p['userprincipalname'].Count) { [string]$p['userprincipalname'][0] } else { $null }
+            Domain                = Get-DomainFromDN $dn
+            PasswordLastSet       = $pls
+            PasswordAgeDays       = $age
+            MustChangeAtNextLogon = ($raw -eq 0)
+            PasswordNeverExpires  = [bool]($uac -band 0x10000)
+            Enabled               = -not ($uac -band 0x0002)
+            WhenCreated           = if ($p['whencreated'].Count) { [datetime]$p['whencreated'][0] } else { $null }
+            DistinguishedName     = $dn
+            QueriedVia            = $gc
+        }
     }
+}
+finally {
+    if ($results) { foreach ($r in $results) { } ; $searcher.Dispose() } else { $searcher.Dispose() }
+    $root.Dispose()
 }
