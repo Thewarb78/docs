@@ -1,2 +1,193 @@
-lsb_release -d
-dpkg -l | grep -E '^ii.*nginx'
+<#
+.SYNOPSIS
+    Reports pwdLastSet for AD users by binding to a Global Catalog.
+
+.DESCRIPTION
+    Binds to a GC (port 3268/3269) and searches either the whole forest or a
+    single domain partition. Converts the raw pwdLastSet FILETIME rather than
+    relying on the module's computed PasswordLastSet property, and derives
+    Enabled / PasswordNeverExpires from userAccountControl so nothing depends
+    on constructed attributes (which are not available over a GC bind for
+    objects outside the GC's own domain).
+
+.PARAMETER Domain
+    FQDN of the domain to scope the search to, e.g. emea.corp.local.
+    Also used to locate a GC if -Server is not supplied.
+    Omit (or use -ForestWide) to search the entire forest.
+
+.PARAMETER Server
+    Explicit GC hostname. Append :port yourself to override, e.g. dc01:3269.
+
+.PARAMETER Identity
+    One or more sAMAccountName / UPN / DN values. Matched via LDAP filter so
+    it works across domains on a GC bind.
+
+.PARAMETER OlderThanDays
+    Only return accounts whose password is older than N days.
+
+.EXAMPLE
+    .\Get-PasswordLastSet.ps1 -Domain emea.corp.local -OlderThanDays 90 |
+        Sort-Object PasswordAgeDays -Descending | Format-Table -Auto
+
+.EXAMPLE
+    .\Get-PasswordLastSet.ps1 -ForestWide -Identity jbloggs,asmith
+
+.EXAMPLE
+    .\Get-PasswordLastSet.ps1 -Server gc01.corp.local -Domain uk.corp.local |
+        Export-Csv .\pwdage.csv -NoTypeInformation
+#>
+[CmdletBinding(DefaultParameterSetName = 'Filter')]
+param(
+    [Parameter(ParameterSetName = 'Identity', Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+    [Alias('SamAccountName', 'UserPrincipalName', 'User')]
+    [string[]]$Identity,
+
+    [Parameter(ParameterSetName = 'Filter')]
+    [string]$LdapFilter = '(&(objectCategory=person)(objectClass=user))',
+
+    [string]$Domain,
+
+    [string]$Server,
+
+    [ValidateSet(3268, 3269)]
+    [int]$Port = 3268,
+
+    [switch]$ForestWide,
+
+    [int]$OlderThanDays,
+
+    [switch]$IncludeDisabled,
+
+    [pscredential]$Credential
+)
+
+begin {
+    Import-Module ActiveDirectory -ErrorAction Stop
+
+    # --- helpers -----------------------------------------------------------
+    function ConvertTo-LdapEscaped([string]$Value) {
+        $sb = [System.Text.StringBuilder]::new()
+        foreach ($c in $Value.ToCharArray()) {
+            switch ($c) {
+                '\' { [void]$sb.Append('\5c') }
+                '*' { [void]$sb.Append('\2a') }
+                '(' { [void]$sb.Append('\28') }
+                ')' { [void]$sb.Append('\29') }
+                "`0" { [void]$sb.Append('\00') }
+                '/' { [void]$sb.Append('\2f') }
+                default { [void]$sb.Append($c) }
+            }
+        }
+        $sb.ToString()
+    }
+
+    function Get-DomainFromDN([string]$Dn) {
+        (($Dn -split '(?<!\\),') |
+            Where-Object { $_ -match '^DC=' } |
+            ForEach-Object { $_.Substring(3) }) -join '.'
+    }
+
+    # --- resolve the GC ----------------------------------------------------
+    if ($Server) {
+        $gcTarget = if ($Server -match ':\d+$') { $Server } else { '{0}:{1}' -f $Server, $Port }
+    }
+    else {
+        $discover = @{ Discover = $true; Service = 'GlobalCatalog'; ErrorAction = 'Stop' }
+        if ($Domain) { $discover['DomainName'] = $Domain }
+        $dc = Get-ADDomainController @discover
+        $gcHost = @($dc.HostName)[0]
+        if (-not $gcHost) { throw "Could not locate a Global Catalog$(if($Domain){" for $Domain"})." }
+        $gcTarget = '{0}:{1}' -f $gcHost, $Port
+    }
+    Write-Verbose "Global Catalog: $gcTarget"
+
+    # --- resolve the search base ------------------------------------------
+    # Empty string = whole forest when bound to a GC.
+    if ($ForestWide -or -not $Domain) {
+        $searchBase = ''
+        Write-Verbose 'Search scope: entire forest'
+    }
+    else {
+        $searchBase = 'DC=' + ($Domain -split '\.' -join ',DC=')
+        Write-Verbose "Search scope: $searchBase"
+    }
+
+    $props = @(
+        'sAMAccountName', 'displayName', 'userPrincipalName',
+        'distinguishedName', 'pwdLastSet', 'userAccountControl', 'whenCreated'
+    )
+
+    $common = @{
+        Server      = $gcTarget
+        SearchBase  = $searchBase
+        SearchScope = 'Subtree'
+        Properties  = $props
+        ErrorAction = 'Stop'
+    }
+    if ($Credential) { $common['Credential'] = $Credential }
+
+    $now = Get-Date
+    $identityBuffer = [System.Collections.Generic.List[string]]::new()
+}
+
+process {
+    if ($PSCmdlet.ParameterSetName -eq 'Identity') {
+        foreach ($id in $Identity) { if ($id) { $identityBuffer.Add($id) } }
+    }
+}
+
+end {
+    if ($PSCmdlet.ParameterSetName -eq 'Identity') {
+        if ($identityBuffer.Count -eq 0) { return }
+        $clauses = foreach ($id in $identityBuffer) {
+            $e = ConvertTo-LdapEscaped $id
+            "(|(sAMAccountName=$e)(userPrincipalName=$e)(distinguishedName=$e))"
+        }
+        $filter = '(&(objectCategory=person)(objectClass=user)(|{0}))' -f ($clauses -join '')
+    }
+    else {
+        $filter = $LdapFilter
+    }
+    Write-Verbose "LDAP filter: $filter"
+
+    $users = Get-ADUser -LDAPFilter $filter @common
+
+    foreach ($u in $users) {
+        $uac = [int]$u.userAccountControl
+        $enabled = -not ($uac -band 0x0002)          # ACCOUNTDISABLE
+        $neverExpires = [bool]($uac -band 0x10000)   # DONT_EXPIRE_PASSWD
+
+        if (-not $IncludeDisabled -and -not $enabled) { continue }
+
+        $raw = $u.pwdLastSet
+        $mustChange = ($null -ne $raw -and [int64]$raw -eq 0)
+
+        if ($null -eq $raw -or [int64]$raw -eq 0) {
+            $pls = $null
+            $age = $null
+        }
+        else {
+            $pls = [datetime]::FromFileTimeUtc([int64]$raw).ToLocalTime()
+            $age = [math]::Round(($now - $pls).TotalDays, 1)
+        }
+
+        if ($PSBoundParameters.ContainsKey('OlderThanDays')) {
+            if ($null -eq $age -or $age -lt $OlderThanDays) { continue }
+        }
+
+        [pscustomobject]@{
+            SamAccountName          = $u.sAMAccountName
+            DisplayName             = $u.displayName
+            UserPrincipalName       = $u.userPrincipalName
+            Domain                  = Get-DomainFromDN $u.distinguishedName
+            PasswordLastSet         = $pls
+            PasswordAgeDays         = $age
+            MustChangeAtNextLogon   = $mustChange
+            PasswordNeverExpires    = $neverExpires
+            Enabled                 = $enabled
+            WhenCreated             = $u.whenCreated
+            DistinguishedName       = $u.distinguishedName
+            QueriedVia              = $gcTarget
+        }
+    }
+}
