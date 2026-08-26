@@ -1,1 +1,2 @@
-ps -eo args | grep kubelet | tr ' ' '\n' | grep -A1 root-dir
+lsb_release -d
+dpkg -l | grep -E '^ii.*nginx'
