@@ -5,7 +5,7 @@
 
 .EXAMPLE
     .\Get-PasswordLastSet.ps1 jbloggs
-    .\Get-PasswordLastSet.ps1 -Identity jbloggs -Domain emea.corp.local
+    .\Get-PasswordLastSet.ps1 -Identity jbloggs -Domain emea.corp.local -Verbose
     .\Get-PasswordLastSet.ps1 -Identity j.bloggs@corp.local -Server gc01.corp.local
 #>
 [CmdletBinding()]
@@ -14,10 +14,8 @@ param(
     [Alias('SamAccountName', 'User')]
     [string]$Identity,
 
-    # Scope the GC search to one domain partition. Omit = forest root downwards.
     [string]$Domain,
 
-    # Explicit GC host. Append :port to override, e.g. gc01:3269
     [string]$Server,
 
     [ValidateSet(3268, 3269)]
@@ -29,13 +27,46 @@ param(
 Add-Type -AssemblyName System.DirectoryServices -ErrorAction SilentlyContinue
 
 # --- helpers ---------------------------------------------------------------
-function ConvertFrom-AdLargeInteger($Value) {
-    if ($null -eq $Value) { return $null }
-    if ($Value -is [int64]) { return [int64]$Value }
-    if ($Value -is [string]) { return [int64]$Value }
+function New-Root {
+    param([string]$Path)
 
-    # COM IADsLargeInteger - only turns up via DirectoryEntry, but handle it
-    $t = $Value.GetType()
+    if ($Credential) {
+        $auth = [System.DirectoryServices.AuthenticationTypes]::Secure
+        if ($Port -eq 3269) {
+            $auth = $auth -bor [System.DirectoryServices.AuthenticationTypes]::SecureSocketsLayer
+        }
+        New-Object System.DirectoryServices.DirectoryEntry(
+            $Path,
+            $Credential.UserName,
+            $Credential.GetNetworkCredential().Password,
+            $auth)
+    }
+    else {
+        # Single-arg ctor = bind as the current user. Passing $null,$null to the
+        # 4-arg overload triggers an anonymous bind, which AD refuses with
+        # "An operations error occurred".
+        New-Object System.DirectoryServices.DirectoryEntry($Path)
+    }
+}
+
+function Test-Bind {
+    param([System.DirectoryServices.DirectoryEntry]$Entry, [string]$What)
+    try {
+        $Entry.RefreshCache()
+        [void]$Entry.Guid   # forces the native bind
+    }
+    catch {
+        throw ("Bind to {0} failed: {1}`n" -f $What, $_.Exception.Message +
+               "Check: 1) port $Port open, 2) target is actually a GC, " +
+               "3) you are running as a domain principal (use -Credential if not).")
+    }
+}
+
+function ConvertFrom-AdLargeInteger($Value) {
+    if ($null -eq $Value)      { return $null }
+    if ($Value -is [int64])    { return [int64]$Value }
+    if ($Value -is [string])   { return [int64]$Value }
+    $t    = $Value.GetType()
     $high = $t.InvokeMember('HighPart', 'GetProperty', $null, $Value, $null)
     $low  = $t.InvokeMember('LowPart',  'GetProperty', $null, $Value, $null)
     return (([int64]$high) -shl 32) -bor (([int64]$low) -band [int64]0xFFFFFFFF)
@@ -59,7 +90,7 @@ else {
                 $ctxArgs += $Credential.UserName
                 $ctxArgs += $Credential.GetNetworkCredential().Password
             }
-            $ctx = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext $ctxArgs
+            $ctx    = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext $ctxArgs
             $forest = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($ctx).Forest
         }
         else {
@@ -68,41 +99,35 @@ else {
         $gcHost = $forest.FindGlobalCatalog().Name
     }
     catch {
-        # Fall back to letting DNS/DC locator resolve the domain name itself
         $fallback = if ($Domain) { $Domain } else { $env:USERDNSDOMAIN }
         if (-not $fallback) { throw "Could not locate a Global Catalog: $($_.Exception.Message)" }
-        Write-Verbose "GC discovery failed, falling back to '$fallback'"
+        Write-Verbose "GC discovery failed ($($_.Exception.Message)), falling back to '$fallback'"
         $gcHost = $fallback
     }
     $gc = '{0}:{1}' -f $gcHost, $Port
 }
 Write-Verbose "GC: $gc"
 
-# --- auth flags ------------------------------------------------------------
-$auth = [System.DirectoryServices.AuthenticationTypes]::Secure
-if ($Port -eq 3269) {
-    $auth = $auth -bor [System.DirectoryServices.AuthenticationTypes]::SecureSocketsLayer
-}
+# --- confirm we can bind, and that it really is a GC -----------------------
+$rootDse = New-Root "LDAP://$gc/RootDSE"
+try {
+    Test-Bind -Entry $rootDse -What "LDAP://$gc/RootDSE"
 
-function New-Root([string]$Path) {
-    if ($Credential) {
-        New-Object System.DirectoryServices.DirectoryEntry(
-            $Path, $Credential.UserName, $Credential.GetNetworkCredential().Password, $auth)
+    $caps = @($rootDse.Properties['supportedCapabilities'])
+    if ($caps -notcontains '1.2.840.113556.1.4.1791') {
+        Write-Warning "$gc did not advertise the GC capability OID. Results may be incomplete."
+    }
+
+    if ($Domain) {
+        $baseDn = 'DC=' + ($Domain -split '\.' -join ',DC=')
     }
     else {
-        New-Object System.DirectoryServices.DirectoryEntry($Path, $null, $null, $auth)
+        $baseDn = [string]$rootDse.Properties['rootDomainNamingContext'][0]
+        if (-not $baseDn) { throw "Could not read rootDomainNamingContext from $gc." }
     }
 }
-
-# --- work out the search base ---------------------------------------------
-if ($Domain) {
-    $baseDn = 'DC=' + ($Domain -split '\.' -join ',DC=')
-}
-else {
-    $rootDse = New-Root "LDAP://$gc/RootDSE"
-    try { $baseDn = [string]$rootDse.Properties['rootDomainNamingContext'][0] }
-    finally { $rootDse.Dispose() }
-    if (-not $baseDn) { throw "Could not read rootDomainNamingContext from $gc." }
+finally {
+    if ($rootDse) { try { $rootDse.Dispose() } catch { } }
 }
 Write-Verbose "Base: $baseDn"
 
@@ -112,22 +137,32 @@ $esc = $Identity -replace '\\', '\5c' -replace '\*', '\2a' `
 
 $filter = "(&(objectCategory=person)(objectClass=user)" +
           "(|(sAMAccountName=$esc)(userPrincipalName=$esc)(distinguishedName=$esc)))"
+Write-Verbose "Filter: $filter"
 
-$root     = New-Root "LDAP://$gc/$baseDn"
-$searcher = New-Object System.DirectoryServices.DirectorySearcher($root, $filter)
-$searcher.SearchScope = 'Subtree'
-$searcher.PageSize    = 100
-$searcher.SizeLimit   = 10
-foreach ($p in 'sAMAccountName', 'displayName', 'userPrincipalName',
-               'distinguishedName', 'pwdLastSet', 'userAccountControl', 'whenCreated') {
-    [void]$searcher.PropertiesToLoad.Add($p)
-}
+$root     = $null
+$searcher = $null
 
 try {
+    $root = New-Root "LDAP://$gc/$baseDn"
+    Test-Bind -Entry $root -What "LDAP://$gc/$baseDn"
+
+    $searcher = New-Object System.DirectoryServices.DirectorySearcher
+    $searcher.SearchRoot      = $root
+    $searcher.Filter          = $filter
+    $searcher.SearchScope     = 'Subtree'
+    $searcher.ReferralChasing = 'None'   # never chase referrals off a GC
+    $searcher.SizeLimit       = 10       # single-account lookup, no paging needed
+    $searcher.ClientTimeout   = [timespan]::FromSeconds(60)
+
+    foreach ($p in 'sAMAccountName', 'displayName', 'userPrincipalName',
+                   'distinguishedName', 'pwdLastSet', 'userAccountControl', 'whenCreated') {
+        [void]$searcher.PropertiesToLoad.Add($p)
+    }
+
     $results = @($searcher.FindAll())
 
     if ($results.Count -eq 0) {
-        Write-Warning "No account matching '$Identity' found via $gc."
+        Write-Warning "No account matching '$Identity' found via $gc under $baseDn."
         return
     }
     if ($results.Count -gt 1) {
@@ -150,7 +185,7 @@ try {
 
         [pscustomobject]@{
             SamAccountName        = [string]$p['samaccountname'][0]
-            DisplayName           = if ($p['displayname'].Count) { [string]$p['displayname'][0] } else { $null }
+            DisplayName           = if ($p['displayname'].Count)       { [string]$p['displayname'][0] }       else { $null }
             UserPrincipalName     = if ($p['userprincipalname'].Count) { [string]$p['userprincipalname'][0] } else { $null }
             Domain                = Get-DomainFromDN $dn
             PasswordLastSet       = $pls
@@ -165,6 +200,6 @@ try {
     }
 }
 finally {
-    if ($results) { foreach ($r in $results) { } ; $searcher.Dispose() } else { $searcher.Dispose() }
-    $root.Dispose()
+    if ($searcher) { try { $searcher.Dispose() } catch { } }
+    if ($root)     { try { $root.Dispose()     } catch { } }
 }
