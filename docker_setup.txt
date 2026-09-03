@@ -1,205 +1,220 @@
-<#
-.SYNOPSIS
-    Gets PasswordLastSet for a single AD account via a Global Catalog.
-    Pure .NET / ADSI - no RSAT ActiveDirectory module required.
+#!/usr/bin/env python3
+"""
+FOR-LIKE REPRODUCTION (v2)
 
-.EXAMPLE
-    .\Get-PasswordLastSet.ps1 jbloggs
-    .\Get-PasswordLastSet.ps1 -Identity jbloggs -Domain emea.corp.local -Verbose
-    .\Get-PasswordLastSet.ps1 -Identity j.bloggs@corp.local -Server gc01.corp.local
-#>
-[CmdletBinding()]
-param(
-    [Parameter(Mandatory, Position = 0)]
-    [Alias('SamAccountName', 'User')]
-    [string]$Identity,
+Changes from v1 and why:
+  - REMOVED the 400-partition repartition. The failure is in setupJob, which
+    happens before a single task runs. Partition count cannot affect it.
+  - CHANGED cleanup from fs.delete() to boto3 per-key delete_object(), because
+    that is what the dev's TestS3Methods actually does. This is the only
+    material difference left between his run and yours.
+  - CHANGED mode("overwrite") to plain save(), because his physical plan shows
+    ErrorIfExists.
+  - ADDED a standalone timed probe of _temporary/0 before the write. If that
+    hangs, you have reproduced the failure with no Spark write involved.
 
-    [string]$Domain,
+Set CLEANUP to flip the one variable:
+  CLEANUP=boto3   per-key boto3 delete   (the dev's behaviour)
+  CLEANUP=s3a     fs.delete via S3A      (your v1 behaviour, the control)
+  CLEANUP=none    leave the prefix alone
+"""
 
-    [string]$Server,
-
-    [ValidateSet(3268, 3269)]
-    [int]$Port = 3268,
-
-    [pscredential]$Credential
+import os
+import sys
+import time
+import pandas as pd
+from pyspark.sql import SparkSession
+from pyspark.sql.types import (
+    StructType, StringType, IntegerType, DoubleType, LongType, StructField,
 )
 
-Add-Type -AssemblyName System.DirectoryServices -ErrorAction SilentlyContinue
+# --- CONFIGURATION: MIRRORING THE ERROR LOG EXACTLY ---
+APP_NAME = "repro_exact_match_v2"
+BUCKET = ""
+KEY_PREFIX = "UNIT_TESTS/unittestparquetfile.avro"
+TARGET_PATH = f"s3a://{BUCKET}/{KEY_PREFIX}"
+SERVICE_ACCOUNT = ""
 
-# --- helpers ---------------------------------------------------------------
-function New-Root {
-    param([string]$Path)
+CLEANUP = os.environ.get("CLEANUP", "boto3").lower()
+FMT = os.environ.get("FORMAT", "avro")
 
-    if ($Credential) {
-        $auth = [System.DirectoryServices.AuthenticationTypes]::Secure
-        if ($Port -eq 3269) {
-            $auth = $auth -bor [System.DirectoryServices.AuthenticationTypes]::SecureSocketsLayer
-        }
-        New-Object System.DirectoryServices.DirectoryEntry(
-            $Path,
-            $Credential.UserName,
-            $Credential.GetNetworkCredential().Password,
-            $auth)
-    }
-    else {
-        # Single-arg ctor = bind as the current user. Passing $null,$null to the
-        # 4-arg overload triggers an anonymous bind, which AD refuses with
-        # "An operations error occurred".
-        New-Object System.DirectoryServices.DirectoryEntry($Path)
-    }
-}
+EXECUTOR_MEMORY = "2g"
+EXECUTOR_CORES = "2"
+EXECUTOR_INSTANCES = "4"
+# ------------------------------------------------------
 
-function Test-Bind {
-    param([System.DirectoryServices.DirectoryEntry]$Entry, [string]$What)
-    try {
-        $Entry.RefreshCache()
-        [void]$Entry.Guid   # forces the native bind
-    }
-    catch {
-        throw ("Bind to {0} failed: {1}`n" -f $What, $_.Exception.Message +
-               "Check: 1) port $Port open, 2) target is actually a GC, " +
-               "3) you are running as a domain principal (use -Credential if not).")
-    }
-}
+app_name = APP_NAME or os.environ["APP_NAME"]
+pod_ip = os.environ.get("POD_IP")
+service_account = SERVICE_ACCOUNT or os.environ["SERVICE_ACCOUNT"]
+executor_memory = EXECUTOR_MEMORY or os.environ.get("EXECUTOR_MEMORY")
+executor_cores = EXECUTOR_CORES or os.environ.get("EXECUTOR_CORES")
+executor_instances = EXECUTOR_INSTANCES or os.environ.get("EXECUTOR_INSTANCES")
 
-function ConvertFrom-AdLargeInteger($Value) {
-    if ($null -eq $Value)      { return $null }
-    if ($Value -is [int64])    { return [int64]$Value }
-    if ($Value -is [string])   { return [int64]$Value }
-    $t    = $Value.GetType()
-    $high = $t.InvokeMember('HighPart', 'GetProperty', $null, $Value, $null)
-    $low  = $t.InvokeMember('LowPart',  'GetProperty', $null, $Value, $null)
-    return (([int64]$high) -shl 32) -bor (([int64]$low) -band [int64]0xFFFFFFFF)
-}
+builder = (
+    SparkSession.builder
+    .appName(app_name)
+    .config("spark.submit.deployMode", "client")
+    .config("spark.kubernetes.authenticate.serviceAccountName", service_account)
+)
+if pod_ip:
+    builder = builder.config("spark.driver.host", pod_ip)
 
-function Get-DomainFromDN([string]$Dn) {
-    (($Dn -split '(?<!\\),') |
-        Where-Object { $_ -match '^DC=' } |
-        ForEach-Object { $_.Substring(3) }) -join '.'
-}
+# Timeouts left at default (60s) to catch the error.
+if executor_memory:
+    builder = builder.config("spark.executor.memory", executor_memory)
+if executor_cores:
+    builder = builder.config("spark.executor.cores", str(executor_cores))
+if executor_instances:
+    builder = builder.config("spark.executor.instances", str(executor_instances))
 
-# --- locate a GC -----------------------------------------------------------
-if ($Server) {
-    $gc = if ($Server -match ':\d+$') { $Server } else { '{0}:{1}' -f $Server, $Port }
-}
-else {
-    try {
-        if ($Domain) {
-            $ctxArgs = @('Domain', $Domain)
-            if ($Credential) {
-                $ctxArgs += $Credential.UserName
-                $ctxArgs += $Credential.GetNetworkCredential().Password
-            }
-            $ctx    = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext $ctxArgs
-            $forest = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($ctx).Forest
-        }
-        else {
-            $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
-        }
-        $gcHost = $forest.FindGlobalCatalog().Name
-    }
-    catch {
-        $fallback = if ($Domain) { $Domain } else { $env:USERDNSDOMAIN }
-        if (-not $fallback) { throw "Could not locate a Global Catalog: $($_.Exception.Message)" }
-        Write-Verbose "GC discovery failed ($($_.Exception.Message)), falling back to '$fallback'"
-        $gcHost = $fallback
-    }
-    $gc = '{0}:{1}' -f $gcHost, $Port
-}
-Write-Verbose "GC: $gc"
+spark = builder.getOrCreate()
+sc = spark.sparkContext
+jvm = sc._jvm
+hconf = sc._jsc.hadoopConfiguration()
 
-# --- confirm we can bind, and that it really is a GC -----------------------
-$rootDse = New-Root "LDAP://$gc/RootDSE"
-try {
-    Test-Bind -Entry $rootDse -What "LDAP://$gc/RootDSE"
+print("=" * 60)
+print(f"target     : {TARGET_PATH}")
+print(f"cleanup    : {CLEANUP}")
+print(f"format     : {FMT}")
+print(f"endpoint   : {hconf.get('fs.s3a.endpoint')}")
+print(f"committer  : {hconf.get('fs.s3a.committer.name')}")
+print("=" * 60)
 
-    $caps = @($rootDse.Properties['supportedCapabilities'])
-    if ($caps -notcontains '1.2.840.113556.1.4.1791') {
-        Write-Warning "$gc did not advertise the GC capability OID. Results may be incomplete."
-    }
 
-    if ($Domain) {
-        $baseDn = 'DC=' + ($Domain -split '\.' -join ',DC=')
-    }
-    else {
-        $baseDn = [string]$rootDse.Properties['rootDomainNamingContext'][0]
-        if (-not $baseDn) { throw "Could not read rootDomainNamingContext from $gc." }
-    }
-}
-finally {
-    if ($rootDse) { try { $rootDse.Dispose() } catch { } }
-}
-Write-Verbose "Base: $baseDn"
+def timed(label, fn):
+    t0 = time.time()
+    try:
+        out = fn()
+        print(f"[{label}] OK in {time.time() - t0:.1f}s")
+        return out
+    except Exception as exc:
+        print(f"[{label}] FAILED after {time.time() - t0:.1f}s")
+        print(f"[{label}] {type(exc).__name__}: {exc}")
+        raise
 
-# --- escape and search -----------------------------------------------------
-$esc = $Identity -replace '\\', '\5c' -replace '\*', '\2a' `
-                 -replace '\(', '\28' -replace '\)', '\29' -replace '/', '\2f'
 
-$filter = "(&(objectCategory=person)(objectClass=user)" +
-          "(|(sAMAccountName=$esc)(userPrincipalName=$esc)(distinguishedName=$esc)))"
-Write-Verbose "Filter: $filter"
+def hadoop_fs():
+    return jvm.org.apache.hadoop.fs.FileSystem.get(
+        jvm.java.net.URI(TARGET_PATH), hconf
+    )
 
-$root     = $null
-$searcher = $null
 
-try {
-    $root = New-Root "LDAP://$gc/$baseDn"
-    Test-Bind -Entry $root -What "LDAP://$gc/$baseDn"
+def hpath(p):
+    return jvm.org.apache.hadoop.fs.Path(p)
 
-    $searcher = New-Object System.DirectoryServices.DirectorySearcher
-    $searcher.SearchRoot      = $root
-    $searcher.Filter          = $filter
-    $searcher.SearchScope     = 'Subtree'
-    $searcher.ReferralChasing = 'None'   # never chase referrals off a GC
-    $searcher.SizeLimit       = 10       # single-account lookup, no paging needed
-    $searcher.ClientTimeout   = [timespan]::FromSeconds(60)
 
-    foreach ($p in 'sAMAccountName', 'displayName', 'userPrincipalName',
-                   'distinguishedName', 'pwdLastSet', 'userAccountControl', 'whenCreated') {
-        [void]$searcher.PropertiesToLoad.Add($p)
-    }
+# --- STEP 1: THE EXACT DATA GENERATION (from his setUpClass) ---
+print("Generating exact developer dataset (200 rows)...")
+partition_column = []
+int_column = []
+float_column = []
+string_column = []
 
-    $results = @($searcher.FindAll())
+for i in range(0, 200):
+    partition_column.append(int(i / 4))
+    int_column.append(i)
+    float_column.append(i * 1.0 + 0.1)
+    string_column.append(f"string{i}")
 
-    if ($results.Count -eq 0) {
-        Write-Warning "No account matching '$Identity' found via $gc under $baseDn."
-        return
-    }
-    if ($results.Count -gt 1) {
-        Write-Warning "$($results.Count) matches for '$Identity' - returning all. Use -Domain to narrow."
-    }
+pd_df = pd.DataFrame({
+    "PARTITION_COL": partition_column,
+    "INTEGER_COL": int_column,
+    "FLOAT_COL": float_column,
+    "STRING_COL": string_column,
+})
 
-    foreach ($r in $results) {
-        $p   = $r.Properties
-        $dn  = [string]$p['distinguishedname'][0]
-        $uac = [int]$p['useraccountcontrol'][0]
-        $raw = if ($p['pwdlastset'].Count) { ConvertFrom-AdLargeInteger $p['pwdlastset'][0] } else { $null }
+target_schema = StructType([
+    StructField("PARTITION_COL", LongType()),
+    StructField("INTEGER_COL", LongType()),
+    StructField("FLOAT_COL", DoubleType()),
+    StructField("STRING_COL", StringType()),
+])
 
-        if ($null -eq $raw -or $raw -eq 0) {
-            $pls = $null; $age = $null
-        }
-        else {
-            $pls = [datetime]::FromFileTimeUtc($raw).ToLocalTime()
-            $age = [math]::Round(((Get-Date) - $pls).TotalDays, 1)
-        }
+df = spark.createDataFrame(pd_df, target_schema)
+print("Data generation complete.")
 
-        [pscustomobject]@{
-            SamAccountName        = [string]$p['samaccountname'][0]
-            DisplayName           = if ($p['displayname'].Count)       { [string]$p['displayname'][0] }       else { $null }
-            UserPrincipalName     = if ($p['userprincipalname'].Count) { [string]$p['userprincipalname'][0] } else { $null }
-            Domain                = Get-DomainFromDN $dn
-            PasswordLastSet       = $pls
-            PasswordAgeDays       = $age
-            MustChangeAtNextLogon = ($raw -eq 0)
-            PasswordNeverExpires  = [bool]($uac -band 0x10000)
-            Enabled               = -not ($uac -band 0x0002)
-            WhenCreated           = if ($p['whencreated'].Count) { [datetime]$p['whencreated'][0] } else { $null }
-            DistinguishedName     = $dn
-            QueriedVia            = $gc
-        }
-    }
-}
-finally {
-    if ($searcher) { try { $searcher.Dispose() } catch { } }
-    if ($root)     { try { $root.Dispose()     } catch { } }
-}
+
+# --- STEP 2: THE CLEANUP (this is the variable under test) ---
+print(f"\nCleanup mode: {CLEANUP} on {TARGET_PATH}")
+
+if CLEANUP == "boto3":
+    import boto3
+
+    endpoint = hconf.get("fs.s3a.endpoint")
+    if endpoint and not endpoint.startswith("http"):
+        endpoint = "https://" + endpoint
+
+    kwargs = {"endpoint_url": endpoint}
+    ak = hconf.get("fs.s3a.access.key") or os.environ.get("AWS_ACCESS_KEY_ID")
+    sk = hconf.get("fs.s3a.secret.key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+    if ak and sk:
+        kwargs["aws_access_key_id"] = ak
+        kwargs["aws_secret_access_key"] = sk
+
+    s3 = boto3.client("s3", **kwargs)
+
+    def boto3_cleanup():
+        # Per-key delete_object, exactly as TestS3Methods does it.
+        deleted = 0
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=BUCKET, Prefix=KEY_PREFIX + "/"):
+            for obj in page.get("Contents", []):
+                s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
+                deleted += 1
+        print(f"    deleted {deleted} keys individually")
+
+    timed("cleanup-boto3", boto3_cleanup)
+
+elif CLEANUP == "s3a":
+    def s3a_cleanup():
+        fs = hadoop_fs()
+        p = hpath(TARGET_PATH)
+        if fs.exists(p):
+            fs.delete(p, True)
+            print("    deleted via fs.delete")
+        else:
+            print("    path did not exist")
+
+    timed("cleanup-s3a", s3a_cleanup)
+
+else:
+    print("    skipped")
+
+
+# --- STEP 3: THE PROBE (the exact call that times out) ---
+# S3AFileSystem.innerGetFileStatus on _temporary/0, no Spark write involved.
+print("\nProbing the committer path directly...")
+try:
+    timed("probe-_temporary/0", lambda: hadoop_fs().exists(
+        hpath(TARGET_PATH + "/_temporary/0")
+    ))
+except Exception:
+    print("\n" + "=" * 50)
+    print("!!! REPRODUCED AT THE PROBE — no Spark write needed !!!")
+    print("=" * 50)
+    spark.stop()
+    sys.exit(1)
+
+
+# --- STEP 4: THE WRITE (plain save, so ErrorIfExists, as in his plan) ---
+print(f"\nAttempting {FMT} write (no repartition, mode=ErrorIfExists)...")
+try:
+    timed("write", lambda: df.write.format(FMT).save(TARGET_PATH))
+    print("Write complete successfully.")
+except Exception as e:
+    print("\n" + "=" * 50)
+    print("!!! REPRODUCTION SUCCESSFUL: Caught Expected Error !!!")
+    print("=" * 50)
+    print(e)
+    print("=" * 50)
+    spark.stop()
+    sys.exit(1)
+
+
+# --- STEP 5: VERIFY ---
+print("Reading back to verify...")
+back = spark.read.format(FMT).load(TARGET_PATH)
+print(f"Read {back.count()} rows. Round-trip successful.")
+
+spark.stop()
+print("PASS: Round trip verified. This variant does NOT reproduce.")
