@@ -1,3 +1,4 @@
-ldd /opt/oracle/instantclient_*/libclntsh.so
-
-find / -name 'libclntsh.so*' 2>/dev/null
+sudo tr '\0' '\n' < /proc/place/cmdline
+getent passwd place
+ps -o user,lstart,etime,args -p place | head -c 2000
+sudo systemctl status place
