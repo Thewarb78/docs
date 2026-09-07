@@ -1,2 +1,1 @@
-grep -riE '8481|ssl|keystore' /apps/spark/conf/
-ls -la /apps/spark/conf/
+keytool -list -v -keystore /etc/security/keys/keystore.jks -storepass | grep -E 'Alias|Owner|Valid'
