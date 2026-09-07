@@ -1,1 +1,1 @@
-["sleep", "infinity"]
+rpm -qa --last | head -40
