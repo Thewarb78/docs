@@ -1,1 +1,2 @@
-rpm -qa --last | head -40
+dpkg -l | grep libaio
+ls -l /usr/lib/x86_64-linux-gnu/libaio*
