@@ -1,1 +1,1 @@
-keytool -list -v -keystore /etc/security/keys/keystore.jks -storepass | grep -E 'Alias|Owner|Valid'
+keytool -list -v -keystore keystore.jks | grep -E "^Alias name:|^Owner:|^Valid from:"
