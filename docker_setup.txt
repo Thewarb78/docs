@@ -1,3 +1,1 @@
-keytool -importkeystore `
-  -srckeystore new-keystore.p12 -srcstoretype PKCS12 `
-  -destkeystore new-keystore.jks -deststoretype JKS
+keytool -changealias -keystore new-keystore.p12 -storetype PKCS12 -alias 1 -destalias ""
