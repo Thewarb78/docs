@@ -1,2 +1,1 @@
-keytool -list -keystore keystore.jks | grep -c "PrivateKeyEntry"
-keytool -list -v -keystore keystore.jks | grep -c "^Owner:"
+keytool -list -v -keystore truststore.jks | grep -E "^Alias name:|^Owner:"
