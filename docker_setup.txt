@@ -1,1 +1,6 @@
-keytool -list -v -keystore keystore.jks | grep -E "^Alias name:|^Owner:|^Valid from:"
+
+openssl pkcs12 -export \
+  -in new.crt -inkey new.key \
+  -certfile chain.crt \
+  -name cert \
+  -out new-keystore.p12
