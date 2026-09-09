@@ -1,11 +1,7 @@
-# Fastest check — Spark's own daemon script
-jps -l | grep spark.deploy.worker.Worker
-
-# Or via process list
-ps -ef | grep -i [s]park.deploy.worker.Worker
-
-# Systemd, if it's managed as a service
-systemctl status spark-worker
-
-# Check the worker web UI port is listening (default 8081)
-ss -tlnp | grep 8081
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: 
+  labels:
+    logging-/enabled: "yes"
