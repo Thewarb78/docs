@@ -1,7 +1,1 @@
-volumeMounts:
-        - name: config
-          mountPath: /fluent-bit/etc/
-
-- name: config
-      configMap:
-        name: fluent-bit-config
+echo "hello from driver" > /proc/1/fd/1
