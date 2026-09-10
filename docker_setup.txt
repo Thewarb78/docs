@@ -1,1 +1,11 @@
-echo "hello from driver" > /proc/1/fd/1
+env:
+        - name: OS_USER
+          valueFrom:
+            secretKeyRef:
+              name: <secret-name>
+              key: username
+        - name: OS_PASSWD
+          valueFrom:
+            secretKeyRef:
+              name: <secret-name>
+              key: password
