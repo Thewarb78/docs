@@ -1,0 +1,11 @@
+- name: os-ca
+          mountPath: /etc/ssl/opensearch
+          readOnly: true
+
+- name: os-ca
+      configMap:
+        name: opensearch-ca
+
+tls          On
+        tls.verify   On
+        tls.ca_file  /etc/ssl/opensearch/ca.crt
