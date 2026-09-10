@@ -1,11 +1,59 @@
-env:
-        - name: OS_USER
-          valueFrom:
-            secretKeyRef:
-              name: <secret-name>
-              key: username
-        - name: OS_PASSWD
-          valueFrom:
-            secretKeyRef:
-              name: <secret-name>
-              key: password
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Daemon        Off
+        Log_Level     info
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    [INPUT]
+        Name              tail
+        Tag               kube.spark.*
+        Path              /var/log/pods/dh-spark_*/*/*.log
+        DB                /var/lib/fluent-bit/tail.db
+        Parser            cri
+        Read_from_Head    Off
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+        Mem_Buf_Limit     50MB
+
+    [INPUT]
+        Name              tail
+        Tag               kube.etl.*
+        Path              /var/log/pods/argo-dh-etl_*/*/*.log
+        DB                /var/lib/fluent-bit/tail.db
+        Parser            cri
+        Read_from_Head    Off
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+        Mem_Buf_Limit     50MB
+
+    [OUTPUT]
+        Name                opensearch
+        Match               *
+        Host                <opensearch-host>
+        Port                9200
+        HTTP_User           ${OS_USER}
+        HTTP_Passwd         ${OS_PASSWD}
+        tls                 On
+        tls.verify          On
+        Index               logs-test
+        Suppress_Type_Name  On
+        Generate_ID         On
+        Retry_Limit         3
+        net.keepalive       On
+
+  parsers.conf: |
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
