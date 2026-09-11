@@ -1,12 +1,27 @@
-[FILTER]
-        Name         parser
-        Match        kube.*
-        Key_Name     filename
-        Parser       podpath
-        Reserve_Data On
+$pattern = 'SPARK|HADOOP|JAVA|PYTHON|PY4J|CONF_DIR'
 
-    [FILTER]
-        Name                  multiline
-        Match                 kube.spark
-        multiline.key_content log
-        multiline.parser      java
+$rows = foreach ($scope in 'Machine','User') {
+  $vars = [Environment]::GetEnvironmentVariables($scope)
+  foreach ($k in $vars.Keys) {
+    if ($k -notmatch $pattern -and $k -ne 'Path') { continue }
+    $vals = if ($k -in 'Path','PYTHONPATH','CLASSPATH') { $vars[$k] -split ';' } else { ,$vars[$k] }
+    foreach ($v in $vals) {
+      if ([string]::IsNullOrWhiteSpace($v)) { continue }
+      $clean = $v.Trim('"').TrimEnd('\')
+      $isPath = $clean -match '^[A-Za-z]:\\|^\\\\'
+      [pscustomobject]@{
+        Scope  = $scope
+        Name   = $k
+        Value  = $v
+        Exists = if ($isPath) { Test-Path -LiteralPath $clean } else { 'n/a' }
+      }
+    }
+  }
+}
+
+$rows | Sort-Object Scope,Name,Value | Format-Table -AutoSize
+$rows | Export-Csv "$env:COMPUTERNAME-sparkenv.csv" -NoTypeInformation
+
+###
+
+$rows | Where-Object Exists -eq $false
