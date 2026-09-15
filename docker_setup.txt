@@ -1,2 +1,2 @@
-sudo grep -rl "ssh\|sshpass" /etc/systemd/system/ /etc/rc.local /usr/local/bin/ 2>/dev/null
-sudo grep -rn "localhost\|127.0.0.1" /usr/local/bin/*.sh 2>/dev/null
+pod stdout → kubelet writes /var/log/pods/<ns>_<pod>_<uid>/<container>/0.log
+  → Fluent Bit (hostPath read-only) → parse → OpenSearch via VIP
