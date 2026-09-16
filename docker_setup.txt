@@ -1,2 +1,2 @@
-pod stdout → kubelet writes /var/log/pods/<ns>_<pod>_<uid>/<container>/0.log
-  → Fluent Bit (hostPath read-only) → parse → OpenSearch via VIP
+USE [Dbname];
+SELECT OBJECT_DEFINITION(OBJECT_ID('dbo.procname'));
