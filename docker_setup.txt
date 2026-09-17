@@ -1,2 +1,24 @@
-USE [Dbname];
-SELECT OBJECT_DEFINITION(OBJECT_ID('dbo.procname'));
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-conf
+  labels:
+    app.kubernetes.io/name: spark-history-server
+data:
+  spark-defaults.conf: |
+    # Event log source
+    spark.history.fs.logDirectory                        s3a://your-bucket/spark-events
+    spark.history.fs.update.interval                     30s
+
+    # Retention (3.0+ for maxNum)
+    spark.history.fs.cleaner.enabled                     true
+    spark.history.fs.cleaner.interval                    1d
+    spark.history.fs.cleaner.maxAge                      14d
+    spark.history.fs.cleaner.maxNum                      5000
+
+    # UI cache
+    spark.history.retainedApplications                   50
+    spark.history.ui.port                                18080
+
+    # Compaction of rolled event logs (3.0+)
+    spark.history.fs.eventLog.rolling.maxFilesToRetain   2
