@@ -2,13 +2,13 @@
 $env:AWS_ACCESS_KEY_ID     = "..."
 $env:AWS_SECRET_ACCESS_KEY = "..."
 $env:AWS_DEFAULT_REGION    = "us-east-1"
-$env:AWS_ENDPOINT_URL      = "https://your-s3-endpoint"
 $env:AWS_CA_BUNDLE         = "C:\certs\ca.pem"
+$ep     = "https://your-s3-endpoint"
 $bucket = "your-bucket"
 $prefix = "logs/"
 
 # --- List all versions and delete markers ---
-$raw = aws s3api list-object-versions --bucket $bucket --prefix $prefix --output json | ConvertFrom-Json
+$raw = aws s3api list-object-versions --endpoint-url $ep --bucket $bucket --prefix $prefix --output json | ConvertFrom-Json
 $items = @($raw.Versions) + @($raw.DeleteMarkers) |
   Where-Object { $_ -and $_.Key } |
   ForEach-Object { @{ Key = $_.Key; VersionId = $_.VersionId } }
@@ -24,11 +24,11 @@ for ($i = 0; $i -lt $items.Count; $i += 1000) {
   $batch = $items[$i..([Math]::Min($i + 999, $items.Count - 1))]
   @{ Objects = @($batch); Quiet = $true } |
     ConvertTo-Json -Depth 4 | Set-Content -Encoding ascii del.json
-  $result = aws s3api delete-objects --bucket $bucket --delete file://del.json --output json | ConvertFrom-Json
+  $result = aws s3api delete-objects --endpoint-url $ep --bucket $bucket --delete file://del.json --output json | ConvertFrom-Json
   "Batch $([int]($i / 1000) + 1): errors $(@($result.Errors).Count)"
   $result.Errors | Select-Object -First 5 | Format-Table Key, Code, Message
 }
 
 # --- Recreate the prefix and check ---
-aws s3api put-object --bucket $bucket --key $prefix
-aws s3 ls "s3://$bucket/$prefix"
+aws s3api put-object --endpoint-url $ep --bucket $bucket --key $prefix
+aws s3 ls "s3://$bucket/$prefix" --endpoint-url $ep
