@@ -1,2 +1,5 @@
-kubectl logs <pod> -f | grep -iE 'replay|finished|timeout'
-curl -s localhost:18080/api/v1/applications | grep -o '"id"' | wc -l
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_DEFAULT_REGION=us-east-1          # any value; on-prem stores usually ignore it
+export AWS_ENDPOINT_URL=https://<your-s3-endpoint>
+export AWS_CA_BUNDLE=/path/to/ca-bundle.pem
