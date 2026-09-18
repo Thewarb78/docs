@@ -1,15 +1,1 @@
-@'
-{
-  "Rules": [{
-    "ID": "log-events-cleanup",
-    "Filter": { "Prefix": "logs/" },
-    "Status": "Enabled",
-    "NoncurrentVersionExpiration": { "NoncurrentDays": 1 },
-    "Expiration": { "ExpiredObjectDeleteMarker": true }
-  }]
-}
-'@ | Set-Content -Encoding ascii lifecycle.json
-
-aws s3api put-bucket-lifecycle-configuration --endpoint-url $ep --bucket $bucket --lifecycle-configuration file://lifecycle.json
-
-aws s3api get-bucket-lifecycle-configuration --endpoint-url $ep --bucket $bucket
+aws s3api get-bucket-versioning --endpoint-url $ep --bucket $bucket
