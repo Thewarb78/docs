@@ -1,4 +1,1 @@
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
+st.logo("https://example.com/images/logo.png", size="large")
