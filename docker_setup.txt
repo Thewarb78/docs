@@ -1,13 +1,4 @@
-apiVersion: gateway.kgateway.dev/v1alpha1
-kind: HTTPListenerPolicy
-metadata:
-  name: sx-gw-websocket
-  namespace: 
 spec:
-  targetRefs:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: -explorer-gw
-  upgradeConfig:
-    enabledUpgrades:
-      - websocket
+  replicas: 1
+  strategy:
+    type: Recreate
