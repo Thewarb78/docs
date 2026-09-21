@@ -1,2 +1,2 @@
-command: ["streamlit", "run", "app.py",
-  "--server.baseUrlPath=the path"]
+- { path: /sap/_stcore/stream,
+    vip: "wss://myvip/sap/_stcore/stream" }
