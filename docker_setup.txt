@@ -1,5 +1,1 @@
-env:
-  - name: STREAMLIT_SERVER_ENABLE_CORS
-    value: "false"
-  - name: STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION
-    value: "false"
+systemctl show <service> -p Environment --value
