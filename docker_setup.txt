@@ -1,5 +1,3 @@
-env:
-  - name: STREAMLIT_SERVER_ENABLE_CORS
-    value: "false"
-  - name: STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION
-    value: "false"
+kubectl port-forward -n namespace deploy/deployname 19000
+
+curl -s localhost:19000/config_dump | grep -A3 upgrade_configs
