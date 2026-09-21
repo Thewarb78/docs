@@ -1,3 +1,13 @@
-curl.exe -s localhost:19000/config_dump | Select-String "upgrade_configs" -Context 0,3
-
-curl.exe -s localhost:19000/stats | Select-String "upgrades|downstream_rq_4xx"
+apiVersion: gateway.kgateway.dev/v1alpha1
+kind: HTTPListenerPolicy
+metadata:
+  name: sx-gw-websocket
+  namespace: 
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: -explorer-gw
+  upgradeConfig:
+    enabledUpgrades:
+      - websocket
