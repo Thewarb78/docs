@@ -1,5 +1,1 @@
-python3 mq_test.py --mode plain --qmgr QM1 --host mqhost --port 1414 --channel YOUR.CHANNEL
-
-python3 mq_test.py --qmgr QM1 --host mqhost --port 1414 \
-  --channel PLAIN.CHANNEL --tls-channel TLS.CHANNEL \
-  --keyrepo /home/you/mqkeys/key
+dpkg -l | grep -i gskit
