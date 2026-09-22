@@ -34,3 +34,104 @@ def b(value):
 
 
 def build_cd(channel, host, port):
+    cd = pymqi.CD()
+    cd.ChannelName = b(channel)
+    cd.ConnectionName = b(f"{host}({port})")
+    cd.ChannelType = CMQXC.MQCHT_CLNTCONN
+    cd.TransportType = XPT_TCP
+    return cd
+
+
+def try_connect(label, args, channel, use_tls):
+    print(f"\n===== {label} =====")
+    print(f"Channel: {channel}   Target: {args.host}({args.port})   QMgr: {args.qmgr}")
+
+    cd = build_cd(channel, args.host, args.port)
+    sco = None
+    if use_tls:
+        cd.SSLCipherSpec = b(args.cipher)
+        sco = pymqi.SCO()
+        if args.keyrepo:
+            sco.KeyRepository = b(args.keyrepo)
+        if args.label:
+            sco.CertificateLabel = b(args.label)
+        print(f"Cipher: {args.cipher}   KeyRepo: {args.keyrepo or '(none set)'}   "
+              f"Label: {args.label or '(default)'}")
+
+    if args.verbose:
+        print("--- CD ---")
+        print(cd)
+        if sco:
+            print("--- SCO ---")
+            print(sco)
+
+    kwargs = {"cd": cd}
+    if sco is not None:
+        kwargs["sco"] = sco
+    if args.user:
+        kwargs["user"] = b(args.user)
+        kwargs["password"] = b(os.environ.get("MQ_PASSWORD", ""))
+
+    qmgr = pymqi.QueueManager(None)
+    start = time.time()
+    try:
+        qmgr.connect_with_options(args.qmgr, **kwargs)
+        elapsed = time.time() - start
+        name = qmgr.inquire(CMQC.MQCA_Q_MGR_NAME)
+        name = name.decode().strip() if isinstance(name, bytes) else str(name).strip()
+        print(f"RESULT: OK - connected to '{name}' in {elapsed:.2f}s")
+        qmgr.disconnect()
+        return "OK"
+    except pymqi.MQMIError as e:
+        elapsed = time.time() - start
+        print(f"RESULT: FAILED after {elapsed:.2f}s - reason {e.reason}")
+        print(f"        {e}")
+        return f"FAILED ({e.reason})"
+    except Exception as e:  # noqa: BLE001
+        print(f"RESULT: ERROR - {type(e).__name__}: {e}")
+        return f"ERROR ({type(e).__name__})"
+
+
+def main():
+    p = argparse.ArgumentParser(description="Compare plain vs TLS MQ connections")
+    p.add_argument("--qmgr", required=True, help="Queue manager name")
+    p.add_argument("--host", required=True)
+    p.add_argument("--port", type=int, default=1414)
+    p.add_argument("--channel", help="Plain (non-TLS) channel name")
+    p.add_argument("--tls-channel", help="TLS channel name (defaults to --channel)")
+    p.add_argument("--cipher", default="TLS_AES_256_GCM_SHA384")
+    p.add_argument("--keyrepo", help="Key repository path WITHOUT .kdb")
+    p.add_argument("--label", help="Client certificate label (only if a client cert is needed)")
+    p.add_argument("--user", help="MQ user id (password from MQ_PASSWORD env var)")
+    p.add_argument("--mode", choices=["plain", "tls", "both"], default="both")
+    p.add_argument("--verbose", action="store_true", help="Print full CD/SCO structures")
+    args = p.parse_args()
+
+    tls_channel = args.tls_channel or args.channel
+    if args.mode in ("plain", "both") and not args.channel:
+        p.error("--channel is required for the plain test")
+    if args.mode in ("tls", "both") and not tls_channel:
+        p.error("--tls-channel (or --channel) is required for the TLS test")
+
+    print(f"Host running test: {socket.gethostname()}")
+    print(f"pymqi version: {getattr(pymqi, '__version__', 'unknown')}")
+    print(f"Python: {sys.version.split()[0]}")
+    for var in ("MQSERVER", "MQCHLLIB", "MQCHLTAB", "MQCCDTURL", "MQSSLKEYR", "MQCLNTCF"):
+        if os.environ.get(var):
+            print(f"WARNING: {var} is set to '{os.environ[var]}' - may affect results")
+
+    results = {}
+    if args.mode in ("plain", "both"):
+        results["Plain"] = try_connect("PLAIN (no TLS)", args, args.channel, use_tls=False)
+    if args.mode in ("tls", "both"):
+        results["TLS"] = try_connect("TLS", args, tls_channel, use_tls=True)
+
+    print("\n===== SUMMARY =====")
+    for k, v in results.items():
+        print(f"{k:6}: {v}")
+    print("\nOn failure, check the client error log for the matching AMQ9xxx message:")
+    print("  /var/mqm/errors/AMQERR01.LOG  or  ~/IBM/MQ/data/errors/AMQERR01.LOG")
+
+
+if __name__ == "__main__":
+    main()
