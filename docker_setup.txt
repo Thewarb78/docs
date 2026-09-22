@@ -1,1 +1,2 @@
-systemctl show <service> -p Environment --value
+ls /var/mqm/errors/ ~/IBM/MQ/data/errors/ 2>/dev/null
+tail -50 /var/mqm/errors/AMQERR01.LOG
