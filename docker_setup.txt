@@ -1,1 +1,36 @@
-timeout 10 openssl s_client -connect PRODHOST:PRODPORT </dev/null 2>&1 | grep -E 'Protocol|Cipher|subject=|issuer=|errno|error'
+#!/usr/bin/env python3
+"""
+MQ connection test: plain vs TLS, via pymqi.
+
+Examples:
+  # plain only
+  python3 mq_test.py --qmgr QM1 --host mqhost --port 1414 --channel APP.SVRCONN --mode plain
+
+  # TLS only
+  python3 mq_test.py --qmgr QM1 --host mqhost --port 1414 --tls-channel APP.TLS.SVRCONN \
+      --keyrepo /home/me/mqkeys/key --mode tls
+
+  # both (default)
+  python3 mq_test.py --qmgr QM1 --host mqhost --port 1414 --channel APP.SVRCONN \
+      --tls-channel APP.TLS.SVRCONN --keyrepo /home/me/mqkeys/key
+
+Credentials (optional): --user NAME, password from env MQ_PASSWORD.
+"""
+import argparse
+import os
+import socket
+import sys
+import time
+
+import pymqi
+
+CMQXC = pymqi.CMQXC
+CMQC = pymqi.CMQC
+XPT_TCP = getattr(CMQXC, "MQXPT_TCP", None) or getattr(CMQC, "MQXPT_TCP")
+
+
+def b(value):
+    return value.encode() if isinstance(value, str) else value
+
+
+def build_cd(channel, host, port):
