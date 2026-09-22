@@ -1,2 +1,1 @@
-chmod +x ~/mq_audit.sh
-~/mq_audit.sh
+timeout 10 openssl s_client -connect PRODHOST:PRODPORT </dev/null 2>&1 | grep -E 'Protocol|Cipher|subject=|issuer=|errno|error'
