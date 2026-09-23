@@ -1,1 +1,5 @@
-dpkg -l | grep -i gskit
+mkdir -p ~/mqkeys && cd ~/mqkeys
+runmqakm -keydb -create -db key.kdb -pw 'SomePassword' -type cms -stash
+runmqakm -cert -add -db key.kdb -stashed -label mq-ca -file /path/to/ca.pem
+runmqakm -cert -list -db key.kdb -stashed
+chmod 600 key.kdb key.sth
