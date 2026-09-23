@@ -1,5 +1,34 @@
+make a cert 
+
+create kdb and import cert:
+
 mkdir -p ~/mqkeys && cd ~/mqkeys
-runmqakm -keydb -create -db key.kdb -pw 'SomePassword' -type cms -stash
-runmqakm -cert -add -db key.kdb -stashed -label mq-ca -file /path/to/ca.pem
+runmqakm -keydb -create -db key.kdb -pw '<pw>' -type cms -stash
+
+# CA chain, one per cert, unique labels
+runmqakm -cert -add -db key.kdb -stashed -label ca-root -file root.pem
+runmqakm -cert -add -db key.kdb -stashed -label ca-issuing -file issuing.pem
+
+# bundle your cert + key, then import
+openssl pkcs12 -export -out client.p12 -inkey client.key -in client.cer \
+  -certfile ca-chain.pem -name myapp-cert -passout pass:<p12pw>
+
+runmqakm -cert -import -file client.p12 -pw '<p12pw>' -type pkcs12 \
+  -target key.kdb -target_stashed -target_type cms -label myapp-cert
+
 runmqakm -cert -list -db key.kdb -stashed
 chmod 600 key.kdb key.sth
+rm client.p12 client.key
+
+communicate the cn to mq team. test
+
+Code
+cd.SSLCipherSpec = their value
+sco.KeyRepository = /home/you/mqkeys/key (no .kdb)
+sco.CertificateLabel = myapp-cert
+Use connect_with_options, and check the channel name is the TLS one.
+Test
+
+python3 mq_test.py --mode tls --qmgr QM1 --host stghost --port 1414 \
+  --channel TLS.CHANNEL --keyrepo /home/you/mqkeys/key \
+  --cipher <their value> --label myapp-cert
