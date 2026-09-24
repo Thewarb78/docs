@@ -1,2 +1,24 @@
-ipykernel==7.2.0
-ipython==9.6.0
+ARG SPARK_IMAGE=your-registry/spark:4.1.2-py314
+FROM ${SPARK_IMAGE}
+
+USER root
+
+# Rename user 185 and move home to something PDE-specific
+ENV HOME=/home/dev
+RUN usermod -l dev -d ${HOME} 185 && \
+    groupmod -n dev spark && \
+    mkdir -p ${HOME} && \
+    chown -R 185:185 ${HOME}
+
+# Dev tooling
+RUN pip install --no-cache-dir ipykernel==7.2.0
+
+# Pre-seeded VS Code extensions
+COPY vscode/extensions.tar.gz /tmp/
+RUN mkdir -p ${HOME}/.vscode-server && \
+    tar -xzf /tmp/extensions.tar.gz -C ${HOME}/.vscode-server && \
+    rm /tmp/extensions.tar.gz && \
+    chown -R 185:185 ${HOME}/.vscode-server
+
+USER 185
+WORKDIR ${HOME}
