@@ -1,0 +1,5 @@
+COPY vscode/extensions.tar.gz /tmp/
+RUN mkdir -p /opt/p/vscode-server && \
+    tar -xzf /tmp/extensions.tar.gz -C /opt/p/vscode-server && \
+    rm /tmp/extensions.tar.gz && \
+    chown -R 185:185 /opt/p
