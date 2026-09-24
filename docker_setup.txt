@@ -1,3 +1,0 @@
-cd ~/.vscode-server && tar -czf /tmp/extensions.tar.gz extensions && du -sh /tmp/extensions.tar.gz
-
-kubectl cp dh-spark/<pod-name>:/tmp/extensions.tar.gz vscode/extensions.tar.gz
