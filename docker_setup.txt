@@ -1,15 +1,1 @@
-initContainers:
-  - name: seed-vscode
-    image: <same image as main container>
-    command:
-      - sh
-      - -c
-      - |
-        mkdir -p /home/p/.vscode-server
-        [ -d /home/p/.vscode-server/extensions ] || \
-          cp -r /opt/p/vscode-server/extensions /home/p/.vscode-server/
-    securityContext:
-      # same as main container: runAsUser, readOnlyRootFilesystem etc.
-    volumeMounts:
-      - name: p
-        mountPath: /home/p
+kubectl logs <pod> -c seed --previous
